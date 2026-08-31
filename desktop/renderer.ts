@@ -10,6 +10,14 @@ async function unwrap<T>(result: Promise<IpcResult<T>>): Promise<T> {
 }
 let initialized = false, lastDecisionId: string | null = null, localBusy = false;
 const ids = (id: string) => input(id).value.split(",").map(value => value.trim()).filter(Boolean);
+const savedKeys = { apiKey: false, bridgeKey: false };
+function keyStatus(field: keyof typeof savedKeys) {
+  const typed = !!input(field).value;
+  el(field + "Status").textContent = typed
+    ? "New value entered; not saved yet." + (savedKeys[field] ? " A saved key already exists." : "")
+    : savedKeys[field] ? "Saved on this PC. The saved key is hidden; no need to enter it again." : "No key saved on this PC.";
+  input(field).placeholder = savedKeys[field] ? "Saved key hidden; blank keeps it" : field === "bridgeKey" ? "Enter at least 16 characters" : "Enter OpenRouter API key";
+}
 function lock(busy: boolean) {
   for (const id of ["save", "test", "clearApi", "clearBridge", "run"]) button(id).disabled = busy;
 }
@@ -21,6 +29,8 @@ async function refresh() {
       " | OpenRouter key: " + (data.settings.hasOpenRouterKey ? "stored" : "missing") +
       " | Bridge key: " + (data.settings.hasBridgeKey ? "stored" : "missing") + " | Execution DISABLED";
     if (!initialized) { input("model").value = data.settings.model; input("temperature").value = String(data.settings.temperature); initialized = true; }
+    savedKeys.apiKey = data.settings.hasOpenRouterKey; savedKeys.bridgeKey = data.settings.hasBridgeKey;
+    keyStatus("apiKey"); keyStatus("bridgeKey");
     lock(data.busy || localBusy);
     if (data.latest && !data.busy && !localBusy && data.latest.decisionId !== lastDecisionId) {
       view("result", data.latest); lastDecisionId = data.latest.decisionId;
@@ -33,6 +43,7 @@ async function operation(output: string, run: () => Promise<unknown>) {
   finally { localBusy = false; await refresh(); }
 }
 for (const [field, toggle] of [["apiKey", "showApi"], ["bridgeKey", "showBridge"]] as const) {
+  input(field).oninput = () => keyStatus(field);
   button(toggle).onclick = () => {
     const show = input(field).type === "password"; input(field).type = show ? "text" : "password";
     button(toggle).textContent = show ? "Hide typed key" : "Show typed key";
@@ -41,12 +52,22 @@ for (const [field, toggle] of [["apiKey", "showApi"], ["bridgeKey", "showBridge"
 button("save").onclick = () => void operation("settingsResult", async () => {
   const data = { provider: "openrouter" as const, model: input("model").value.trim(), temperature: Number(input("temperature").value),
     apiKey: input("apiKey").value, bridgeKey: input("bridgeKey").value };
-  const pending = api.saveSettings(data);
-  // Clear only the submitted values; status polling never populates either secret field.
-  input("apiKey").value = ""; input("bridgeKey").value = "";
-  input("apiKey").type = "password"; input("bridgeKey").type = "password";
-  button("showApi").textContent = "Show typed key"; button("showBridge").textContent = "Show typed key";
-  return unwrap(pending);
+  if (data.bridgeKey.trim() && data.bridgeKey.trim().length < 16)
+    throw new Error("Not saved: the local Bridge key needs at least 16 characters. Your typed values are kept; correct the key and save again.");
+  let saved;
+  try { saved = await unwrap(api.saveSettings(data)); }
+  catch {
+    throw new Error("Settings were not confirmed saved. Your typed values are kept. Check the model ID, temperature (0-2), key lengths (maximum 512 characters), and local storage, then retry.");
+  }
+  // Clear only successfully submitted values, never edits made while the save was pending.
+  for (const [field, toggle] of [["apiKey", "showApi"], ["bridgeKey", "showBridge"]] as const) {
+    if (input(field).value === data[field]) {
+      input(field).value = ""; input(field).type = "password"; button(toggle).textContent = "Show typed key";
+    }
+  }
+  return { status: "SETTINGS_SAVED", message: "Saved on this PC. Key fields are now empty for privacy; blank fields keep saved keys.",
+    openRouterKey: saved.hasOpenRouterKey ? "saved (hidden)" : "not saved",
+    bridgeKey: saved.hasBridgeKey ? "saved (hidden)" : "not saved" };
 });
 button("test").onclick = () => void operation("settingsResult", async () => {
   view("settingsResult", { status: "Testing saved OpenRouter settings in main..." }); return unwrap(api.testOpenRouter());

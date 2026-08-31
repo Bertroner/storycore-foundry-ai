@@ -14,6 +14,9 @@ The source audit and six design documents are complete and are canonical inputs.
 
 PROJECT_STATE.md is the canonical checkpoint; CHAT_HANDOFF.md mirrors its status, scope, evidence and next step. The Phase 1 scope below limits the broader future architecture described in the audit documents. Deferred capabilities are not prerequisites to implement for this slice; unsupported cases must be rejected.
 
+
+Settings UI follow-up: saved keys have an explicit per-field indicator; successful Save clears only submitted values after confirmation, while failed Save preserves typed values. Offline Electron regression checks cover short-key rejection, main-process validation failure, successful save and DPAPI disk reload with fake keys. No live model or combat request was made.
+
 ## Canonical inputs
 
 Read AGENTS.md, this checkpoint and [PROVEN_POC.md](PROVEN_POC.md), then the six completed documents:

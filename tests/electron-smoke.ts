@@ -15,7 +15,7 @@ async function smoke() {
 const directory = await mkdtemp(join(tmpdir(), "storycore-electron-smoke-"));
 app.setPath("userData", join(directory, "profile"));
 let cleanup: (() => Promise<void>) | null = null;
-const timer = setTimeout(() => { console.error("DESKTOP_SMOKE_TIMEOUT"); app.exit(1); }, 30000);
+const timer = setTimeout(() => { console.error("DESKTOP_SMOKE_TIMEOUT"); app.exit(1); }, 60000);
 try {
   await app.whenReady(); console.log("SMOKE_STAGE_APP_READY");
   const store = new SettingsStore(directory);
@@ -47,8 +47,42 @@ try {
   assert.equal(result.node, "undefined"); assert.equal(result.process, "undefined"); assert.equal(result.networkBlocked, true);
   assert.ok(!JSON.stringify(result).includes("offline-openrouter-test-key"));
   assert.deepEqual(result.methods, ["cancelDecision", "clearBridgeKey", "clearOpenRouterKey", "runDecision", "saveSettings", "status", "testOpenRouter"]);
+  // Exercise real Save clicks: failed input must survive; successful persistence must clear it.
+  async function saveViaUi(model: string, bridgeKey: string) {
+    return window.webContents.executeJavaScript(`(async () => {
+      const field = document.getElementById("bridgeKey");
+      document.getElementById("model").value = ${JSON.stringify(model)};
+      field.value = ${JSON.stringify(bridgeKey)};
+      field.dispatchEvent(new Event("input"));
+      document.getElementById("settingsResult").textContent = "pending";
+      document.getElementById("save").click();
+      for (let attempt = 0; attempt < 150; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        if (!document.getElementById("save").disabled && document.getElementById("settingsResult").textContent !== "pending") {
+          return { value: field.value, type: field.type,
+            message: document.getElementById("settingsResult").textContent,
+            label: document.getElementById("bridgeKeyStatus").textContent };
+        }
+      }
+      throw new Error("SAVE_UI_TIMEOUT");
+    })()`);
+  }
+  const shortKey = await saveViaUi("offline/smoke", "short");
+  assert.equal(shortKey.value, "short"); assert.match(shortKey.message, /at least 16/);
+  const rejected = await saveViaUi("invalid model", "offline-replacement-bridge-key");
+  assert.equal(rejected.value, "offline-replacement-bridge-key");
+  assert.match(rejected.message, /not confirmed saved/);
+  assert.equal(store.credentials().bridgeKey, "offline-bridge-test-key");
+  const saved = await saveViaUi("offline/smoke", "offline-replacement-bridge-key");
+  assert.equal(saved.value, ""); assert.equal(saved.type, "password");
+  assert.match(saved.message, /SETTINGS_SAVED/); assert.match(saved.label, /Saved on this PC/);
+  assert.ok(!saved.message.includes("offline-replacement-bridge-key"));
+  const reloaded = new SettingsStore(directory); await reloaded.load();
+  assert.equal(reloaded.credentials().bridgeKey, "offline-replacement-bridge-key");
+  assert.equal(reloaded.credentials().apiKey, "offline-openrouter-test-key");
+  console.log("SMOKE_STAGE_SAVE_FAILURE_AND_RELOAD_PASSED");
   const clear = await window.webContents.executeJavaScript("window.storycore.clearOpenRouterKey()");
-  assert.equal(clear.ok, true); assert.equal(store.credentials().apiKey, ""); assert.equal(store.credentials().bridgeKey, "offline-bridge-test-key");
+  assert.equal(clear.ok, true); assert.equal(store.credentials().apiKey, ""); assert.equal(store.credentials().bridgeKey, "offline-replacement-bridge-key");
   assert.equal(runtime.bridge.readsSent, 0);
   const artifact = resolve("tmp", "desktop-smoke.png"); await mkdir(resolve("tmp"), { recursive: true });
   await writeFile(artifact, (await window.webContents.capturePage()).toPNG());
