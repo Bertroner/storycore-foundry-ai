@@ -200,7 +200,7 @@ New completed static evidence: [LAARU_SPELL_COMPENDIUM_AUDIT.md](LAARU_SPELL_COM
 
 Commit this audit checkpoint as **Audit LAARU spell compendium**, push origin/main and stop. The earlier Phase 1A checkpoint's file list/commit instructions above describe that historical checkpoint, not this audit.
 
-## Latest checkpoint — V12 spell execution donor audit (2026-08-31)
+## Prior checkpoint — V12 spell execution donor audit (2026-08-31)
 
 **V12 spell execution donor audit completed. No production spell execution implemented; no live spell cast performed. Phase 2 production implementation has not begun.** This checkpoint supersedes earlier commit/next-step instructions above. Phase 0 remains COMPLETE; Phase 1A live read -> normalization -> real Qwen tactical decision remains proven, full acceptance OPEN, execution DISABLED.
 
@@ -220,3 +220,17 @@ Broader OPTIMIZATION / GENERALIZATION work remains pending: universal Action Nor
 Verification: npm run check passed (63/63 tests, typecheck and build); git diff --check passed. Audit has all 22 requested sections, checkpoint/handoff bodies match, and targeted credential/diff review found no secrets. All 7,505 LAARU donor file paths/hashes and seven recorded installed-source hashes are unchanged; four pinned Git donor worktrees are clean. This checkpoint changes only V12_SPELL_EXECUTION_DONOR_AUDIT.md, PROJECT_STATE.md and CHAT_HANDOFF.md; no production code, donor code, runtime settings or logs are included. Passing existing tests is not a live spell test or closure of Phase 1A acceptance.
 
 Commit this documentation checkpoint as **Audit V12 spell execution architecture**, push origin/main and STOP. Do not begin implementation or live testing until reviewed.
+
+## Latest checkpoint — Fire Bolt automatic test discovery (2026-09-01)
+
+**Isolated Fire Bolt discovery harness implemented and tested; spell execution remains NOT_PERFORMED. No production spell support or Phase 2 implementation.** This checkpoint supersedes the earlier manual preflight/next-step instructions. See [FIRE_BOLT_EXECUTION_SEAM_TEST.md](FIRE_BOLT_EXECUTION_SEAM_TEST.md).
+
+The earlier request for operator-supplied scene/caster/target IDs and workflow-isolation certification was an unnecessary harness precondition, not a Foundry limitation. The separate desktop harness now reads active scope, native Actor.hasPlayerOwner through Bridge filter-actors, linked/unique Token instances and actual owned Item identity through resolve-uuid. Player ownership controls caster eligibility only, never hostility. Current eligible combatant is preferred; unique fallback/target candidates resolve automatically; ambiguity uses human-readable rows. No editable technical IDs or tactical ranking is used.
+
+Live read-only discovery reached **CASTER_NOT_FOUND**, with execution=DISABLED_REVIEW_REQUIRED and writesDispatched=0. The eligible caster set was empty; no complete live caster/target setup, owned spell execution, workflow or HP/resource result is claimed. The earlier NOT_PERFORMED result is not converted to PASS. No spell import, automatic substitute Actor or Foundry write occurred; PROVEN_POC.md is unchanged.
+
+Verification: npm run check passed **84/84 tests**, typecheck/build; separate offline sandboxed Electron UI/backend test passed; git diff --check passed. Fixture tests prove automatic IDs, name-row selection, native ownership boundaries, stale rejection, and the one-shot dispatch/observe policy. They do not prove live Midi correlation. Production retains its original eight READ commands; only small transport/server reuse seams changed. Normalizer, runner, intent schemas, donors and installed Foundry/world files were not modified.
+
+**Exact next step: review the harness and CASTER_NOT_FOUND result. STOP before any cast.** A suitable existing combat participant must satisfy discovery before a setup can be reviewed; no manual IDs are required. Run is deliberately disabled in this discovery build, with no activation IPC/live dispatcher. The one-shot guard is tested with fake ports; a later separately authorized live binding must supply scoped observation and safe target-state handling or stop uncertain. This checkpoint does not authorize implementing Phase 2 or production execution. Commit/push: **Automate Fire Bolt test discovery**.
+
+Phase 0 remains COMPLETE. Phase 1A live Foundry -> normalization -> real Qwen decision remains proven; full acceptance OPEN, production execution DISABLED. Universal Action Normalization, disposition semantics, compact DecisionView and the PLANNING_UNAVAILABLE loop remain pending and untouched. Foundry stays 12.343 / D&D5e 3.3.1; no LLM calls, spell casts or live writes were made by this harness task.

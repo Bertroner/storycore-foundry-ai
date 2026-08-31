@@ -7,8 +7,7 @@ import { ensure, SafeError } from "./safety.js";
 
 const HOST = "127.0.0.1";
 // Backend transport only. Settings, decisions and UI are never served over HTTP.
-export async function createApp(settings: SettingsStore, port = 3210) {
-  const bridge = new BridgeSession();
+export async function createApp(settings: SettingsStore, port = 3210, bridge = new BridgeSession()) {
   const ws = new WebSocketServer({ noServer: true, maxPayload: 2 * 1024 * 1024, perMessageDeflate: false });
   const app = createServer((req, res) => {
     const expectedHost = HOST + ":" + (app.address() as { port: number }).port;

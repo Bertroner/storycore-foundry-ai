@@ -17,7 +17,7 @@ const readParams = {
 export const READ_COMMANDS = Object.freeze(Object.keys(readParams));
 export type ReadCommand = keyof typeof readParams;
 export interface BridgeReader { readonly epoch: string; readonly connected: boolean; read(type: ReadCommand, params: Record<string, unknown>): Promise<unknown> }
-type Pending = { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
+type Pending = { type: string; resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
 export class BridgeSession implements BridgeReader {
   private socket: WebSocket | null = null;
   private pending = new Map<string, Pending>();
@@ -36,12 +36,13 @@ export class BridgeSession implements BridgeReader {
         if (!frame.success) throw new SafeError("INVALID_BRIDGE_FRAME");
         const pending = this.pending.get(frame.data.id); if (!pending) return;
         this.pending.delete(frame.data.id); clearTimeout(pending.timer);
-        frame.data.success ? pending.resolve(frame.data.data) : pending.reject(new SafeError("BRIDGE_READ_FAILED"));
+        frame.data.success ? pending.resolve(frame.data.data) : pending.reject(new SafeError(this.readFailureCode(pending.type, frame.data.error)));
       } catch { socket.close(1008, "Invalid response"); this.disconnect(); }
     });
     socket.on("error", () => { if (socket === this.socket) this.disconnect(); });
     socket.on("close", () => { if (socket === this.socket) this.disconnect(); });
   }
+  protected readFailureCode(_type: string, _error: string | undefined): string { return "BRIDGE_READ_FAILED"; }
   disconnect() {
     const old = this.socket; this.socket = null; this.epoch = randomUUID();
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new SafeError("BRIDGE_DISCONNECTED")); }
@@ -50,12 +51,16 @@ export class BridgeSession implements BridgeReader {
   async read(type: ReadCommand, params: Record<string, unknown>): Promise<unknown> {
     ensure(Object.hasOwn(readParams, type), "READ_ONLY_COMMAND_DENIED");
     ensure(readParams[type].safeParse(params).success, "READ_PARAMS_INVALID");
+    return this.sendRead(type, params);
+  }
+  // Reused by the isolated test reader; production read() retains its exact allowlist.
+  protected async sendRead(type: string, params: Record<string, unknown>): Promise<unknown> {
     ensure(this.connected && this.socket, "BRIDGE_DISCONNECTED");
     ensure(this.pending.size < 16, "TOO_MANY_READS");
     const socket = this.socket; const id = randomUUID();
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new SafeError("BRIDGE_READ_TIMEOUT")); this.disconnect(); }, this.timeoutMs);
-      this.pending.set(id, { resolve, reject, timer }); this.readsSent++;
+      this.pending.set(id, { type, resolve, reject, timer }); this.readsSent++;
       socket.send(JSON.stringify({ id, type, params }), error => {
         if (!error) return;
         const p = this.pending.get(id); if (p) { clearTimeout(p.timer); this.pending.delete(id); p.reject(new SafeError("BRIDGE_SEND_FAILED")); }
