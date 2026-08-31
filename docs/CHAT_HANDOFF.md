@@ -2,6 +2,10 @@
 
 This file exists so a new ChatGPT/Codex session can continue the project without reconstructing history from memory.
 
+## Audit checkpoint — 2026-08-31
+
+The six source-audit/design documents are complete; begin with [SOURCE_AUDIT.md](SOURCE_AUDIT.md) and [REUSE_PLAN.md](REUSE_PLAN.md). The latter contains the exact minimal modules, Bridge patch seams, compatibility gates and implementation order. Existing POC facts remain preserved. No production code, donor changes, new live combat tests or Foundry upgrades were made. Proposed wire extensions are explicitly distinct from the current Bridge API. Stop after documentation unless implementation is requested.
+
 ## Start here
 
 Repository: `https://github.com/Bertroner/storycore-foundry-ai`

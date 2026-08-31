@@ -7,7 +7,13 @@ Baseline commit before this state file: `baad611a9fdb5f4abaddbc0bb5445415d7941be
 
 ## Current phase
 
-**Phase 0 — Source harvest / architecture audit.**
+**Phase 0 — Source harvest / architecture audit complete (2026-08-31).**
+
+The six audit/design deliverables are complete: [SOURCE_AUDIT.md](SOURCE_AUDIT.md), [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md), [REUSE_PLAN.md](REUSE_PLAN.md), [WIRE_CONTRACT.md](WIRE_CONTRACT.md), [NORMALIZED_COMBAT_STATE.md](NORMALIZED_COMBAT_STATE.md), and [COMBAT_INTENT_SCHEMA.md](COMBAT_INTENT_SCHEMA.md). All six donor tags/commits and licenses were inspected; donors remain unchanged. No production implementation or new live verification was performed.
+
+Selected direction: reuse Bridge transport and its existing GridPathfinder; add a read-only path preview plus shared guarded movement, scoped effective-token Actor reads/activation, and matched Midi capture. Preserve legacy item.use. Current Bridge lacks declared scene scope on activation/context and uses an unfiltered next-workflow hook; production must not assume those safety features already exist.
+
+Next step, in a separately requested implementation pass: contracts and BridgeSession in read-only fixture mode, then the sequence in REUSE_PLAN.md. The historical first-task instructions below describe the completed audit phase and should not trigger a repeat audit.
 
 The experimental POC stage for basic melee/ranged execution is complete enough to stop writing throwaway BAT tests. The next task is to audit donor repositories and define the minimal production architecture before implementation.
 
