@@ -2,8 +2,18 @@ import { parseTree, type Node, type ParseError } from "jsonc-parser";
 
 export class SafeError extends Error { constructor(public code: string) { super(code); } }
 export function ensure(ok: unknown, code: string): asserts ok { if (!ok) throw new SafeError(code); }
+const BRIDGE_DIAGNOSTIC_READS = new Set(["get-combat-state", "get-world-info", "get-scene", "get-scene-tokens",
+  "get-actor", "get-actor-effects", "get-combat-turn-context", "get-token"]);
+export const BRIDGE_DIAGNOSTIC_FIELDS: ReadonlySet<string> = new Set(["payload", "id", "sceneId", "name", "x", "y",
+  "width", "height", "elevation", "rotation", "hidden", "disposition", "actorId", "textureSrc", "hp", "ac",
+  "round", "turn", "started", "current", "combatants", "world", "active", "grid", "walls", "tokens",
+  "type", "system", "items", "activeStatuses", "effects", "currentCombatant", "nearbyTokens"]);
 export function safeError(error: unknown): string {
-  return error instanceof SafeError && /^[A-Z0-9_]{1,80}$/.test(error.code) ? error.code : "INTERNAL_ERROR";
+  if (!(error instanceof SafeError)) return "INTERNAL_ERROR";
+  if (/^[A-Z0-9_]{1,80}$/.test(error.code)) return error.code;
+  const parts = error.code.split(":");
+  return parts.length === 3 && parts[0] === "BRIDGE_DATA_INVALID" &&
+    BRIDGE_DIAGNOSTIC_READS.has(parts[1]!) && BRIDGE_DIAGNOSTIC_FIELDS.has(parts[2]!) ? error.code : "INTERNAL_ERROR";
 }
 export function strictJson(text: string, cap = 8192): unknown {
   ensure(Buffer.byteLength(text) <= cap, "PAYLOAD_TOO_LARGE");

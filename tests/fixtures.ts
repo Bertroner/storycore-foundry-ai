@@ -6,7 +6,7 @@ export const mind = { actorId: "npc", personality: "Cautious.", motivation: "Sur
 const current = { id: "npc-combatant", actorId: "npc", tokenId: "npc-token", hidden: false, defeated: false };
 const target = { id: "hero-combatant", actorId: "hero", tokenId: "hero-token", hidden: false, defeated: false };
 export function makeBridge() {
-  const token = { id: "npc-token", actorId: "npc", name: "Guard", x: 0, y: 0, width: 1, height: 1, elevation: 0, hidden: false, disposition: -1 };
+  const token = { id: "npc-token", actorId: "npc", name: "Guard", x: 0, y: 0, width: 1, height: 1, elevation: 0, hidden: false, disposition: -1, rotation: 0, img: "icons/guard.webp", conditions: [], hp: { value: 7, max: 7 }, ac: 15 };
   const hero = { ...token, id: "hero-token", actorId: "hero", name: "Hero", x: 100, disposition: 1 };
   const hidden = { ...hero, id: "hidden-token", actorId: "hidden-actor", name: "HIDDEN_SENTINEL", hidden: true };
   const values: Record<ReadCommand, unknown> = {
@@ -14,7 +14,10 @@ export function makeBridge() {
     "get-combat-state": { id: "combat", started: true, round: 1, turn: 0, current, combatants: [current, target] },
     "get-scene": { id: "scene", active: true, width: 2000, height: 2000, grid: { type: 1, size: 100, distance: 5, units: "ft" }, walls: [], asciiMap: "RAW_ASCII", notes: ["RAW_NOTES"] },
     "get-scene-tokens": { sceneId: "scene", tokens: [token, hero, hidden] },
-    "get-token": { ...token, sceneId: "scene" },
+    // Separate detail fixture: no spread from the summary (different wire keys and HP shape).
+    "get-token": { id: "npc-token", sceneId: "scene", name: "Guard", x: 0, y: 0, width: 1, height: 1,
+      elevation: 0, rotation: 0, hidden: false, disposition: "hostile", actorId: "npc", textureSrc: "icons/guard.webp",
+      hp: { current: 7, max: 7 }, ac: 15 },
     "get-actor": { id: "npc", name: "Guard", type: "npc", flags: { secret: "RAW_FLAGS" }, system: {
       attributes: { hp: { value: 7, max: 7 }, ac: { value: 15 }, movement: { walk: 30 } },
       details: { biography: { value: "RAW_BIOGRAPHY" } } }, items: [

@@ -104,7 +104,7 @@ Record for each run: time, decisionId, runtime versions, selected model, state s
 | Old local UI | Stopped before rework; port 3210 was confirmed no longer listening. It is not restarted as an HTTP UI. |
 | npm ci | Fresh project-local install succeeded; npm audit reported zero vulnerabilities at this check. |
 | npm run dev | Opened the visible desktop window directly; no external browser. |
-| npm run check | Typecheck and build passed; 41/41 tests passed, including all original 32 regression cases. The retired HTTP-page case now asserts 404/no UI/settings exposure. |
+| npm run check | Typecheck and build passed; 48/48 tests passed, including all original 32 regression cases. The retired HTTP-page case now asserts 404/no UI/settings exposure. |
 | New desktop unit tests | Exact IPC sender/frame/URL, fixed method allowlist, secret-free status/results/errors/logs, blank-preserve, explicit-clear, trusted OpenRouter invocation and no Bridge writes passed. |
 | npm run test:desktop | Real Electron 44.0.0 window/preload/main test passed using fake credentials. OS sandbox enabled, renderer Node absent, network denied, fields empty for saved keys, DPAPI clear passed; failed Save retained typed values, successful Save cleared fields with confirmation, and disk reload preserved the saved replacement; zero Bridge reads/writes. Screenshot inspected. |
 | npm run package | Portable Windows x64 build succeeded; archive excludes donors, tests and settings. |
@@ -113,8 +113,19 @@ Record for each run: time, decisionId, runtime versions, selected model, state s
 | Manual close/far/LOS variation | Not performed in this checkpoint. |
 | Foundry mutation | No writes added or dispatched by the test harness. No movement/item/Midi/path-planning implementation or donor modification. |
 
-Provider/unit tests use test doubles; they are not proof of actual Qwen inference. A previously user-triggered dry-run reported BRIDGE_DATA_INVALID with stateBytes=0 when the old service was stopped; that rejected attempt is not a successful normalized-state/LLM acceptance. Combat diagnosis is deferred rather than added to this UI-only task. PROVEN_POC.md retains the earlier live evidence; **movement-exhaustion-across-multiple-NPC-turns is not independently proven**.
+Provider/unit tests use test doubles; they are not proof of actual Qwen inference. The first operator-reported real Foundry read reached the adapter but stopped with BRIDGE_DATA_INVALID, stateBytes=0 and writesDispatched=0. It did not reach normalization or Qwen and is not Phase 1A live acceptance. The token-detail contract mismatch exposed by that attempt is fixed as described below; no new live test was performed for the fix. PROVEN_POC.md retains the earlier live evidence; **movement-exhaustion-across-multiple-NPC-turns is not independently proven**.
 
+
+## Live token contract correction (2026-08-31)
+
+Verified the read-only local donor at v8.11.2, commit f71ea11b708d78c85c979ddae04d371be66e766e: src/commands/handlers/token/tokenTypes.ts (mapTokenToResult/mapTokenToDetail), GetSceneTokensHandler.ts and GetTokenHandler.ts. The adapter now uses separate schemas/types:
+
+- get-scene-tokens: numeric disposition (-2/-1/0/1), img, conditions, optional hp {value,max} and optional ac.
+- get-token: string disposition (secret/hostile/neutral/friendly), explicit sceneId, rotation, textureSrc, nullable actorId, nullable hp {current,max} and nullable ac. It does not report actorLink; normalized actorLink remains null and linked-Actor operator attestation is still required.
+
+Disposition mapping is explicit; invalid values, scene mismatches and secret perceived targets still reject. Schema errors now report fixed READ/field labels, e.g. BRIDGE_DATA_INVALID:get-token:disposition. All eight READ boundaries are labelled; no payload values, arbitrary record keys, raw Actor/Token dumps or Zod messages enter these errors. Nested failures identify their safe top-level field (e.g. tokens), not raw paths.
+
+npm run check passed 48/48 tests, including all previous 41 and seven added contract/diagnostic regressions. Tests use distinct numeric-summary and string-detail fixtures. The runner regression confirms an invalid detail stops before normalization/model invocation with zero writes and preserves only the safe diagnostic. The portable desktop build is refreshed for the next manual live test. No movement, activation, Midi, next-turn, path planning, donor modification or Foundry upgrade was performed. **Stop for another live test; do not mark live acceptance complete.**
 
 ## Exact limits and safe failures
 

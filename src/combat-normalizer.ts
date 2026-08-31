@@ -1,5 +1,5 @@
 import type { ActionCard, CombatStateV1 } from "./combat-state.js";
-import type { RawSnapshot } from "./combat-sensor.js";
+import { summaryDisposition, type RawSnapshot } from "./combat-sensor.js";
 import { ensure, numberOrNull as num, plain } from "./safety.js";
 function obj(value: unknown): Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {}; }
 function strings(value: unknown, max = 16) { return Array.isArray(value) ? value.slice(0, max).map(v => plain(v)) : []; }
@@ -16,7 +16,7 @@ export class CombatNormalizer {
     const nearby: CombatStateV1["nearby"] = fixture.perceivedTokenIds.map(id => {
       const t = raw.tokens.find(t => t.id === id)!; const c = raw.context.nearbyTokens.find(c => c.tokenId === id)!;
       return { actorId: t.actorId!, tokenId: t.id, combatantId: combat.combatants.find(c => c.tokenId === id)!.id,
-        name: plain(t.name), disposition: ({ "-1": "hostile", "0": "neutral", "1": "friendly" } as const)[String(t.disposition) as "-1"] ?? "unknown",
+        name: plain(t.name), disposition: summaryDisposition(t.disposition),
         position: position(t), distance: c.distanceFt, units: scene.grid.units, distanceSource: "bridge-approximation",
         // Bridge's true can mean missing backend. False is a reported obstruction; true remains unknown.
         wallLos: c.lineOfSight === false ? false : null, perceived: true, perceptionSource: "verified-fixture",
@@ -63,7 +63,7 @@ export class CombatNormalizer {
         bridgeVersion: null, midiVersion: null, scopeVerified: false, pathPreview: false, workflowMatching: false, automaticExecution: false },
       combat: { started: combat.started, round: combat.round, turn: combat.turn,
         current: { combatantId: current.id, actorId: actor.id, tokenId: token.id } },
-      self: { actorId: actor.id, tokenId: token.id, combatantId: current.id, effectiveActorUuid: null, actorLink: token.actorLink ?? null,
+      self: { actorId: actor.id, tokenId: token.id, combatantId: current.id, effectiveActorUuid: null, actorLink: null,
         name: plain(actor.name), actorType: actor.type, position: position(token), elevation: token.elevation,
         footprint: { width: token.width, height: token.height }, hp: { current: num(hp.value), max: num(hp.max), temp: num(hp.temp) },
         ac: num(obj(attributes.ac).value),
