@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>StoryCore Foundry AI - Phase 1A</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><h1>StoryCore Foundry AI <span>Phase 1A</span></h1><p>READ → NORMALIZE → REAL LLM → VALIDATE <strong>Execution DISABLED</strong></p></header>
+<section aria-label="Connection"><h2>Connection</h2><p id="status" role="status">Connecting to desktop runtime...</p></section>
+<div class="columns">
+<section><h2>OpenRouter</h2>
+<label>Provider<input value="OpenRouter" disabled></label>
+<label>API key<input id="apiKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="Blank preserves saved key"></label>
+<button id="showApi" type="button">Show typed key</button>
+<label>Model<input id="model" autocomplete="off" value="qwen/qwen3-30b-a3b-instruct-2507"></label>
+<label>Temperature<input id="temperature" type="number" min="0" max="2" step=".05" value=".25"></label>
+<p class="hint">Max output: 700 tokens. Test uses saved settings and a small real API request.</p>
+<button id="test" type="button">Test OpenRouter</button><button id="clearApi" type="button" class="secondary">Clear OpenRouter key</button>
+</section>
+<section><h2>Bridge</h2>
+<label>Local Bridge key<input id="bridgeKey" type="password" autocomplete="new-password" spellcheck="false" placeholder="At least 16 characters; separate from OpenRouter"></label>
+<button id="showBridge" type="button">Show typed key</button>
+<p>Foundry connects to:</p><code>ws://127.0.0.1:3210/bridge</code>
+<p class="hint">Foundry API WebSocket URL: the address above.<br>MCP WebSocket URL: empty.<br>API Key: the same local Bridge key.<br>Allow Script Macros: disabled. Reload Foundry after changing settings.</p>
+<button id="clearBridge" type="button" class="secondary">Clear Bridge key</button>
+<p class="hint">Windows DPAPI encrypts both keys under %LOCALAPPDATA%\StoryCoreFoundryAI\. Saved plaintext keys are never returned to this window.</p>
+</section></div>
+<section aria-label="Save settings">
+<button id="save" type="button">Save settings</button>
+<pre id="settingsResult" aria-live="polite">Newly typed keys are sent once to main, then cleared. Blank fields preserve saved values.</pre>
+</section>
+<section><h2>Phase 1A dry-run</h2>
+<div class="columns fields">
+<label>Scene ID<input id="sceneId" autocomplete="off"></label><label>Combat ID<input id="combatId" autocomplete="off"></label>
+<label>Current NPC Actor ID<input id="actorId" autocomplete="off"></label><label>Current NPC Token ID<input id="tokenId" autocomplete="off"></label>
+<label>Verified linked Actor IDs<input id="linkedActorIds" autocomplete="off" placeholder="Self + known targets, comma-separated"></label>
+<label>Perceived Token IDs<input id="perceivedTokenIds" autocomplete="off" placeholder="Only tokens the NPC perceives; comma-separated"></label>
+</div>
+<label class="attestation"><input type="checkbox" id="attest"> I verified this run: one active combat, GM viewing its scene, listed Actors linked, normal walking with no difficult terrain. Perceived tokens are NPC knowledge, not everything the GM sees.</label>
+<p class="hint">Current Bridge cannot verify every scope fact. Unsupported geometry, doors, duplicate or hidden tokens still reject the run. Attestation resets after each run.</p>
+<div class="columns fields">
+<label>Development-only personality<textarea id="personality" rows="2">Cautious; values survival and protects companions.</textarea></label>
+<label>Development-only motivation<textarea id="motivation" rows="2">Defend the entrance while trying to survive.</textarea></label>
+<label>Relationships JSON<textarea id="relationships" rows="2">[]</textarea></label>
+<label>Relevant memory JSON<textarea id="memory" rows="2">[]</textarea></label>
+</div>
+<p class="hint">This fixture is not the connected StoryCore memory database. No secrets, hidden facts or tactical if/else code.</p>
+<button id="run" type="button">Run one real LLM dry-run</button><button id="cancel" type="button" class="secondary">Cancel</button>
+</section>
+<section><h2>Result</h2><pre id="result" aria-live="polite">No decision run yet.</pre></section>
+<script type="module" src="renderer.js"></script>
+</body></html>

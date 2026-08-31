@@ -56,6 +56,13 @@ export class SettingsStore {
     const data = parsed.data;
     const next: Settings = { provider: data.provider, model: data.model, temperature: data.temperature,
       apiKey: data.apiKey?.trim() || this.value.apiKey, bridgeKey: data.bridgeKey?.trim() || this.value.bridgeKey };
+    return this.persist(next);
+  }
+  async clearSecret(which: "apiKey" | "bridgeKey") {
+    ensure(which === "apiKey" || which === "bridgeKey", "SETTINGS_INVALID");
+    return this.persist({ ...this.value, [which]: "" });
+  }
+  private async persist(next: Settings) {
     const disk = { model: next.model, temperature: next.temperature,
       encryptedApiKey: await this.protector.protect(next.apiKey), encryptedBridgeKey: await this.protector.protect(next.bridgeKey) };
     await mkdir(this.directory, { recursive: true });

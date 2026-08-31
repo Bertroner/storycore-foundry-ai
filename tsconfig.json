@@ -13,6 +13,8 @@
   },
   "include": [
     "src/**/*.ts",
-    "tests/**/*.ts"
+    "tests/**/*.ts",
+    "desktop/**/*.ts",
+    "desktop/**/*.cts"
   ]
 }

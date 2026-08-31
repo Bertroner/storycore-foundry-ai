@@ -41,7 +41,7 @@ Phase 0 is complete. Phase 1A implements a local, read-only LLM dry-run slice; l
 ```powershell
 npm ci
 npm run check
-npm start
+npm run dev
 ```
 
-Open http://127.0.0.1:3210. See [Windows setup and acceptance](docs/PHASE1A_TESTING.md), [project state](docs/PROJECT_STATE.md) and [StoryCore boundary](docs/STORYCORE_BOUNDARY.md). Keys belong only in the local masked settings UI, never this repository.
+Electron opens the desktop window directly; Chrome is not required. The Bridge listener remains ws://127.0.0.1:3210/bridge. Optional portable Windows build: `npm run package`. See [Windows setup and acceptance](docs/PHASE1A_TESTING.md), [project state](docs/PROJECT_STATE.md) and [StoryCore boundary](docs/STORYCORE_BOUNDARY.md). Keys belong only in the desktop masked settings UI, never this repository.

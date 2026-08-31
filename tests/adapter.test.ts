@@ -254,13 +254,15 @@ test("Windows DPAPI encrypts with CurrentUser and decrypts without command-line 
   const protector = new WindowsDpapi(); const encrypted = await protector.protect(credentials.apiKey);
   assert.ok(!encrypted.includes(credentials.apiKey)); assert.equal(await protector.unprotect(encrypted), credentials.apiKey);
 });
-test("HTTP UI is loopback-only, settings are masked, cross-origin writes/generic commands denied", async t => {
+test("HTTP listener stays loopback-only; browser UI/settings removed and cross-origin writes denied", async t => {
   const store = new SettingsStore(await temporary(t), testProtector); await store.save(credentials);
   const runtime = await createApp(store, 0); t.after(() => runtime.close());
   const address = runtime.app.address() as { address: string; port: number }; assert.equal(address.address, "127.0.0.1");
   const origin = "http://127.0.0.1:" + address.port;
   const status = await (await fetch(origin + "/api/status")).text(); assert.ok(!status.includes(credentials.apiKey));
-  const html = await (await fetch(origin)).text(); assert.ok(html.includes('type="password"'));
+  assert.equal((await fetch(origin)).status, 404);
+  assert.equal((await fetch(origin + "/api/status")).status, 404);
+  assert.deepEqual(await (await fetch(origin + "/health")).json(), { status: "ok", execution: "DISABLED" });
   for (const path of ["/api/settings", "/api/decision", "/api/execute"]) {
     const response = await fetch(origin + path, { method: "POST", headers: { Origin: "https://evil.invalid", "Content-Type": "application/json", "X-StoryCore-Local": "1" }, body: "{}" });
     assert.equal(response.status, 400);

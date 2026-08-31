@@ -24,3 +24,6 @@ settings.tmp
 local-settings/
 secrets/
 decisions/
+
+# Local desktop packages (not installed settings).
+release/
