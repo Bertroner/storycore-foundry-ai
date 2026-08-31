@@ -1,3 +1,4 @@
+import { PHASE1A_DECISION_LIFETIME_MS } from "../src/phase1a-config.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DecisionRunner } from "../src/decision-runner.js";
@@ -57,7 +58,7 @@ test("provider failures preserve safe request metadata without returning respons
     (async () => new Response(secret, { status: 503 })) as typeof fetch);
   const raw = await new CombatSensor(mock.bridge).capture(fixture);
   const request: DecisionRequestV1 = { ...base({ decisionId: "d", stepId: "s", state: { snapshotId: "x" } } as DecisionRequestV1),
-    deadlineAt: new Date(Date.now() + 30000).toISOString(), limits: { planRequestsRemaining: 2, repairResponsesRemaining: 2, modelResponsesRemaining: 5 },
+    deadlineAt: new Date(Date.now() + PHASE1A_DECISION_LIFETIME_MS).toISOString(), limits: { planRequestsRemaining: 2, repairResponsesRemaining: 2, modelResponsesRemaining: 5 },
     planFeedback: [], state: new CombatNormalizer().normalize(raw), narrative: mind } as DecisionRequestV1;
   await assert.rejects(provider.decide(request, null, new AbortController().signal), error => {
     assert.ok(error instanceof ProviderFailure);

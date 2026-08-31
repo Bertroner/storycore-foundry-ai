@@ -83,7 +83,7 @@ Expected terminal results:
 - PLANNING_UNAVAILABLE on an event: the LLM requested a schema-valid goal. No plan-token-path command was sent, no route/planId was invented. Feedback returns into the same bounded decision; a later final may be accepted.
 - A clear rejection/pause: unknown ID, known out-of-range/blocked LOS, stale read, unsupported scope, schema/provider error or limit. No automatic fallback tactic, movement or end-turn occurs.
 
-One click is one decision, at most two plan attempts, two repair continuations, five model calls and 30 seconds from the captured snapshot. No next-NPC loop. Provider calls have no hidden retries. Failed/invalid responses consume their slots. A final seals that invocation. Repeated completed runDecision requestId returns the cached result, changed body is rejected; concurrent requests are refused. At most 100 distinct runs per service process; restart explicitly for another session.
+One click is one decision, at most two plan attempts, two repair continuations, five model calls and 60 seconds from the captured snapshot (PHASE1A_DECISION_LIFETIME_MS). Snapshot expiresAt is also the decision deadlineAt; provider calls and continuations share the remaining time and cannot extend it. No next-NPC loop. Provider calls have no hidden retries. Failed/invalid responses consume their slots. A final seals that invocation. Repeated completed runDecision requestId returns the cached result, changed body is rejected; concurrent requests are refused. At most 100 distinct runs per service process; restart explicitly for another session.
 
 ## Live acceptance matrix — perform manually
 
@@ -98,7 +98,7 @@ Record for each run: time, decisionId, runtime versions, selected model, state s
 | Old local UI | Stopped before rework; port 3210 was confirmed no longer listening. It is not restarted as an HTTP UI. |
 | npm ci | Fresh project-local install succeeded; npm audit reported zero vulnerabilities at this check. |
 | npm run dev | Opened the visible desktop window directly; no external browser. |
-| npm run check | Typecheck and build passed; 58/58 tests passed, including all original 32 regression cases. The retired HTTP-page case now asserts 404/no UI/settings exposure. |
+| npm run check | Typecheck and build passed; 63/63 tests passed, including all original 32 regression cases. The retired HTTP-page case now asserts 404/no UI/settings exposure. |
 | New desktop unit tests | Exact IPC sender/frame/URL, fixed method allowlist, secret-free status/results/errors/logs, blank-preserve, explicit-clear, trusted OpenRouter invocation and no Bridge writes passed. |
 | npm run test:desktop | Real Electron 44.0.0 window/preload/main test passed using fake credentials. OS sandbox enabled, renderer Node absent, network denied, fields empty for saved keys, DPAPI clear passed; failed Save retained typed values, successful Save cleared fields with confirmation, and disk reload preserved the saved replacement; zero Bridge writes. Offline Detect/deselect/attest/Run through real IPC and a local fixture Bridge also passed; the test-only model received no deselected target. Screenshot inspected. |
 | npm run package | Portable Windows x64 build succeeded; archive excludes donors, tests and settings. |
@@ -120,6 +120,19 @@ Verified the read-only local donor at v8.11.2, commit f71ea11b708d78c85c979ddae0
 Disposition mapping is explicit; invalid values, scene mismatches and secret perceived targets still reject. Schema errors now report fixed READ/field labels, e.g. BRIDGE_DATA_INVALID:get-token:disposition. All eight READ boundaries are labelled; no payload values, arbitrary record keys, raw Actor/Token dumps or Zod messages enter these errors. Nested failures identify their safe top-level field (e.g. tokens), not raw paths.
 
 npm run check passed 48/48 tests, including all previous 41 and seven added contract/diagnostic regressions. Tests use distinct numeric-summary and string-detail fixtures. The runner regression confirms an invalid detail stops before normalization/model invocation with zero writes and preserves only the safe diagnostic. The portable desktop build is refreshed for the next manual live test. No movement, activation, Midi, next-turn, path planning, donor modification or Foundry upgrade was performed. **Stop for another live test; do not mark live acceptance complete.**
+
+## Supervised real-LLM timeout correction
+
+A later operator-reported live attempt reached OpenRouter with qwen/qwen3-30b-a3b-instruct-2507 but stopped at DECISION_DEADLINE, latencyMs=29999 and returnedModel=null. No model response was accepted and writesDispatched remained 0. The earlier 30-second supervised window was insufficient for that request; this is evidence of reaching the provider, not successful Phase 1A live acceptance.
+
+The supervised Phase 1A lifetime is now **60 seconds**, defined once as PHASE1A_DECISION_LIFETIME_MS in src/phase1a-config.ts. CombatNormalizer sets expiresAt to observedAt plus that lifetime. DecisionRunner uses exactly that expiry as deadlineAt and schedules cancellation using its remaining time. The provider wait is rejected at deadline even if the provider does not cooperate with cancellation; late replies are not logged as accepted output, normalized into a new snapshot, or acted upon. Validation before and after fresh readback still rejects expired or changed state. Two plan requests, two repair continuations, five model responses, one decision per click, existing session/invocation limits and zero writes remain unchanged.
+
+Timeout results report DECISION_DEADLINE with timing.timeoutMs=60000, timing.elapsedMs (milliseconds since the captured snapshot) and timing.providerLatencyMs (elapsed time of the last provider call, including capability lookup). The pause event carries timeoutMs and latencyMs too. These fixed numeric diagnostics also enter the sanitized summary log; no API key or Authorization header is included. Cancellation requested by the user remains CANCELLED. Connection-test and Bridge-read timeouts are unchanged.
+
+npm run check passed **63/63 tests**, including fake-clock tests for a response after 30 but before 60 seconds, shared snapshot/decision expiry, OpenRouter cancellation at the deadline, rejection of an uncooperative late response, expiry during readback and already-expired snapshots. No real minute-long provider call or live Foundry test was performed for this fix. Restart the refreshed portable build for the next supervised manual test. **Phase 1A live acceptance remains unverified.**
+
+
+Current timeout-fix portable artifact: release/phase1a-60s/StoryCoreFoundryAI-win32-x64/StoryCoreFoundryAI.exe. The standard release folder could not be replaced while the previous app was open (Windows EBUSY); it was not updated. The separate package uses the same saved DPAPI settings. Close the old window before launching this build.
 
 ## Exact limits and safe failures
 

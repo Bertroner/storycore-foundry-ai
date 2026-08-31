@@ -1,3 +1,4 @@
+import { PHASE1A_DECISION_LIFETIME_MS } from "./phase1a-config.js";
 import type { ActionCard, CombatStateV1 } from "./combat-state.js";
 import { summaryDisposition, type RawSnapshot } from "./combat-sensor.js";
 import { ensure, numberOrNull as num, plain } from "./safety.js";
@@ -57,7 +58,7 @@ export class CombatNormalizer {
     const abilities = obj(actor.system.abilities);
     const state: CombatStateV1 = {
       schemaVersion: "1.0", snapshotId: raw.snapshotId, observedAt: raw.observedAt,
-      expiresAt: new Date(Date.parse(raw.observedAt) + 30000).toISOString(),
+      expiresAt: new Date(Date.parse(raw.observedAt) + PHASE1A_DECISION_LIFETIME_MS).toISOString(),
       scope: { worldId: raw.world.id, sceneId: scene.id, combatId: combat.id, sessionEpoch: raw.epoch, revision: raw.fingerprint },
       runtime: { foundryVersion: raw.world.foundryVersion, systemId: "dnd5e", systemVersion: raw.world.systemVersion,
         bridgeVersion: null, midiVersion: null, scopeVerified: false, pathPreview: false, workflowMatching: false, automaticExecution: false },

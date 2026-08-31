@@ -80,7 +80,7 @@ export class DesktopService {
       this.latest = this.clean(result); this.runs.set(data.requestId, { hash, result: this.latest });
       await mkdir(join(this.settings.directory, "decisions"), { recursive: true });
       await writeFile(join(this.settings.directory, "decisions", result.decisionId + ".json"), JSON.stringify(this.latest, null, 2), { mode: 0o600 });
-      this.log(JSON.stringify({ status: result.status, decisionId: result.decisionId, stateBytes: result.stateBytes, writesDispatched: 0 }));
+      this.log(JSON.stringify({ status: result.status, decisionId: result.decisionId, stateBytes: result.stateBytes, timing: result.timing, writesDispatched: 0 }));
       return this.latest;
     });
   }
