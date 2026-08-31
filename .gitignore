@@ -16,3 +16,11 @@ _foundry-runtime/
 _reference_source/
 tmp/
 out/
+
+# Defense in depth; runtime secrets and decision logs belong outside this repository.
+settings.json
+settings.tmp
+*.secrets.json
+local-settings/
+secrets/
+decisions/

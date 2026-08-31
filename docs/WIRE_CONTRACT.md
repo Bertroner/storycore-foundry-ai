@@ -1,8 +1,14 @@
 # Wire contract v1
 
-**Status: design only.** Existing Bridge wire is audited at v8.11.2; StoryCore envelopes and extensions below are proposals, not commands already available. [SOURCE_AUDIT.md](SOURCE_AUDIT.md) gives exact paths/pin; the two schema documents define the decision DTOs.
+**Status: Phase 1A read/decision subset implemented; execution/extensions remain design only.** Existing Bridge wire is audited at v8.11.2; StoryCore envelopes and extensions below are proposals, not commands already available. [SOURCE_AUDIT.md](SOURCE_AUDIT.md) gives exact paths/pin; the two schema documents define the decision DTOs.
 
 Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+
+## Phase 1A implementation status
+
+The read/decision subset is implemented in src/. The external StoryCore campaign route has no exported decision client; LlmDecisionGateway is the minimal compatible boundary documented in STORYCORE_BOUNDARY.md. The adapter/executor envelopes below remain the full future contract, not generic endpoints exposed by the dev server.
+
+Phase 1A is strictly read-only. POST /api/decision takes a trusted requestId, explicit per-run scope/perception fixture and development mind. One invocation is bounded to one decision (two plan attempts, two repair continuations, five model calls, 30 seconds), stricter than the future eight-cycle maximum. No LLM tool interface or generic Bridge passthrough exists. PLAN_REQUEST returns summary:null and error.code=PLANNING_UNAVAILABLE in planFeedback for the same decision/snapshot. No plan-token-path command is dispatched. FINAL_INTENT is only stored as DRY-RUN VALIDATED INTENT; no submit-intent write path exists. /api/settings, /api/test, /api/cancel and GET /api/status support the local developer view with masked credentials and origin protection. Full Windows setup and evidence: PHASE1A_TESTING.md.
 
 ## 1. Trusted StoryCore ↔ adapter boundary
 

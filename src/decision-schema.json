@@ -1,0 +1,283 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DecisionResponseV1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decisionId",
+        "snapshotId",
+        "stepId",
+        "type",
+        "goal"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "stepId": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "PLAN_REQUEST"
+        },
+        "goal": {
+          "$ref": "#/$defs/planGoal"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decisionId",
+        "snapshotId",
+        "stepId",
+        "type",
+        "intent"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "stepId": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "FINAL_INTENT"
+        },
+        "intent": {
+          "$ref": "#/$defs/finalIntent"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actorId"
+      ],
+      "properties": {
+        "actorId": {
+          "$ref": "#/$defs/id"
+        },
+        "combatantId": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "itemAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actionId",
+        "itemId",
+        "target"
+      ],
+      "properties": {
+        "actionId": {
+          "$ref": "#/$defs/id"
+        },
+        "itemId": {
+          "$ref": "#/$defs/id"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        }
+      }
+    },
+    "movement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planId",
+        "goalKind"
+      ],
+      "properties": {
+        "planId": {
+          "$ref": "#/$defs/id"
+        },
+        "goalKind": {
+          "enum": [
+            "approach",
+            "position",
+            "retreat"
+          ]
+        }
+      }
+    },
+    "finalIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decisionId",
+        "snapshotId",
+        "kind",
+        "action",
+        "movement"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "activate_item",
+            "move",
+            "end_turn"
+          ]
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/itemAction"
+            }
+          ]
+        },
+        "movement": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/movement"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 240
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "activate_item"
+            },
+            "action": {
+              "$ref": "#/$defs/itemAction"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "move"
+            },
+            "action": {
+              "type": "null"
+            },
+            "movement": {
+              "$ref": "#/$defs/movement"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "end_turn"
+            },
+            "action": {
+              "type": "null"
+            },
+            "movement": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "gridPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ],
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      }
+    },
+    "planGoal": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "target",
+            "actionId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "approach"
+            },
+            "target": {
+              "$ref": "#/$defs/target"
+            },
+            "actionId": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "destination"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "position",
+                "retreat"
+              ]
+            },
+            "destination": {
+              "$ref": "#/$defs/gridPoint"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

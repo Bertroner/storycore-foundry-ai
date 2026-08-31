@@ -1,8 +1,16 @@
 # Normalized combat state v1
 
-**Proposed compact decision DTO.** Raw Bridge responses remain adapter-internal. StoryCore owns memory/personality/relationships; Foundry owns live state, and D&D5e/Midi own rules. This schema is input to [COMBAT_INTENT_SCHEMA.md](COMBAT_INTENT_SCHEMA.md), not a duplicate Actor database.
+**Canonical compact decision DTO; conservative Phase 1A subset implemented.** Raw Bridge responses remain adapter-internal. StoryCore owns memory/personality/relationships; Foundry owns live state, and D&D5e/Midi own rules. This schema is input to [COMBAT_INTENT_SCHEMA.md](COMBAT_INTENT_SCHEMA.md), not a duplicate Actor database.
 
 Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+
+## Phase 1A implementation status
+
+src/combat-state.ts preserves the normative type below; CombatNormalizer implements a conservative subset. actorLink/effectiveActorUuid, remaining budgets and module versions stay unknown when unavailable; scopeVerified=false, effectsComplete=false and automaticExecution=false. The current Bridge's true LOS can be a backend fallback, so true becomes wallLos:null; a reported false remains false. Distances are bridge-approximation. Empty legacy weapon target/range/uses metadata stays null. Melee/ranged modality is carried by the short generated summary, not raw item description. Spell slots and plans are empty in this checkpoint.
+
+Operator-supplied per-run fixture identifies verified linked Actors, the viewed single combat, normal walking/no terrain and positively perceived token IDs. It cannot establish a native capability; unlinked support is not claimed. Hidden/secret targets remain rejected. Oversized supported catalogues stop; unsupported item types are omitted with counts. Raw dumps, effects changes, HTML, flags and maps remain internal.
+
+The supervised Phase 1A request explicitly permits discussing this degraded subset with quality.completeForDecision=false and annotated unknowns. This is a read-only testing allowance, not permission to execute or to apply the future automatic-decision completeness gate loosely. Full native legality remains unresolved; no writes exist. See PHASE1A_TESTING.md for exact attestations, omissions, caps and evidence. The future complete execution contract below is unchanged.
 
 ## Decision input and read-only planning feedback
 

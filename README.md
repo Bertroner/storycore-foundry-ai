@@ -34,8 +34,14 @@ This clones pinned source versions into `_references/`.
 | lib-find-the-path-12 | 2.0.5 | V12 pathfinding reference |
 | PF2e AI Combat Assistant | 1.07 | AI combat-state/prompt architecture study |
 
-## First task
+## Current checkpoint
 
-Open this folder in Codex and give Codex the contents of `CODEX_START_PROMPT.md`.
+Phase 0 is complete. Phase 1A implements a local, read-only LLM dry-run slice; live Foundry/Qwen acceptance is still pending. Do not repeat the audit or start movement/Midi execution.
 
-Codex must first audit donor source and document what can be reused/adapted. No large implementation before that audit.
+```powershell
+npm ci
+npm run check
+npm start
+```
+
+Open http://127.0.0.1:3210. See [Windows setup and acceptance](docs/PHASE1A_TESTING.md), [project state](docs/PROJECT_STATE.md) and [StoryCore boundary](docs/STORYCORE_BOUNDARY.md). Keys belong only in the local masked settings UI, never this repository.

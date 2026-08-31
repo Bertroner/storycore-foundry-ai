@@ -1,0 +1,18 @@
+# StoryCore boundary used by Phase 1A
+
+Read-only local inspection: 2026-08-31. No sibling repository or donor was modified. This is implementation boundary selection, not a repeat of the completed donor audit.
+
+| Existing source | Exact boundary/pattern | Phase 1A decision |
+|---|---|---|
+| C:\StoryCore-Dev\storycore-rpg, HEAD e7257c85fcd27d7f8f2b3a3fd4bc6e5b783235c5; app/api/campaign/route.ts: ModelProvider, resolveConnection, generateTurn, testModelConnection | Provider/model selection separate from context; OpenRouter chat/completions; JSON Schema; bounded request; minimal connection test | Compatible provider/model/context separation in LlmDecisionGateway and OpenRouterDecisionProvider. Existing functions are internal to a campaign route with DB/runtime dependencies, not an exported reusable client. No sibling import or copied implementation. |
+| Same route: npcContextBlock, memoryCoreText | Personality, motivation, relationships, bounded memories and confirmed knowledge are context, not executable tactics | NpcMindProvider uses the same conceptual fields. DevFixtureMindProvider is explicitly temporary. No actual StoryCore DB reads/writes or Foundry-to-StoryCore ID mapping are claimed. |
+| Same repository: db/schema.ts: npcs, memoryRecords, memoryWitnesses, chronicleEvents; route.ts: persistMemoryCandidates | NPC facts, confirmed/pending memory and witness-aware records; campaign persistence | Future StoryCore provider can map stable Foundry Actor IDs to these records. No memory/event writes or imported campaign turn engine in Phase 1A. |
+| Same repository: desktop/src/settings-store.ts: readApiKey, saveApiKey | Electron safeStorage, per-user external settings, no key roundtrip to UI | Standalone Node cannot import Electron safeStorage. Use Windows DPAPI CurrentUser via stdin and encrypted per-user settings. Do not reuse permissive plaintext fallbacks. |
+| C:\StoryCore-Dev\storycore-combat, HEAD b290253cb240cb5bcb452fcc58aca6059a997b2e; src/combat/core/{actions,combat-state,turn-manager,types}.ts | Local combat simulator/state and rules, no suitable provider boundary found in src | No reuse: Foundry/D&D5e/Midi remain rules authority. |
+| storycore-combat-Mappers | Frozen/reference only | Not imported, modified or advanced. |
+
+The API base remains https://openrouter.ai/api/v1. Native JSON Schema is selected when the public model catalogue advertises structured_outputs; response_format=json_object is used when only that parameter is advertised; otherwise the model is instructed to return strict JSON text. All paths use the same local schema validation and reject prose/fences. Native schema requests set provider.require_parameters=true. No hidden retry, schema healing, alternate-model fallback or unrestricted tool calling is enabled.
+
+Endpoint support and exact schema features can vary; model catalogue support is not proof that this canonical schema was accepted in a real completion. See [OpenRouter structured outputs](https://openrouter.ai/docs/guides/features/structured-outputs) and [model catalogue](https://openrouter.ai/docs/api/api-reference/models/list-all-models-and-their-properties). A provider error pauses safely and preserves sanitized model/latency metadata.
+
+No donor code was copied or substantially adapted in Phase 1A. Bridge protocol/type facts and the canonical in-repository schemas are implemented independently. Correlation, bounded lifecycle and context separation use the architecture recorded in SOURCE_AUDIT.md. Consequently no third-party donor implementation notice is added for nonexistent code copies; installed npm packages retain their own license files in node_modules/package metadata.

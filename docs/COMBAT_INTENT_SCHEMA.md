@@ -1,6 +1,12 @@
 # Combat intent schema v1
 
-**Proposed contract, not an implemented API.** The LLM chooses intent; deterministic code validates facts and supported legality, then native Foundry/D&D5e/Midi execute. [WIRE_CONTRACT.md](WIRE_CONTRACT.md) owns transport/trusted scope; [NORMALIZED_COMBAT_STATE.md](NORMALIZED_COMBAT_STATE.md) owns the selectable catalogue.
+**Canonical contract; Phase 1A parsing/validation implemented, execution deferred.** The LLM chooses intent; deterministic code validates facts and supported legality, then native Foundry/D&D5e/Midi execute. [WIRE_CONTRACT.md](WIRE_CONTRACT.md) owns transport/trusted scope; [NORMALIZED_COMBAT_STATE.md](NORMALIZED_COMBAT_STATE.md) owns the selectable catalogue.
+
+## Phase 1A implementation status
+
+src/decision-schema.json contains the normative schema below; an automated test prevents drift. Runtime parsing rejects duplicate keys, unknown fields, comments, prose/fences, oversized/deep output and invented references. The real provider uses this same schema when supported; validation remains mandatory without native structured output.
+
+Phase 1A never executes an intent. No plans are offered, so FINAL_INTENT movement and kind=move are rejected as PLAN_NOT_OFFERED. Valid PLAN_REQUEST goals are recorded with PLANNING_UNAVAILABLE feedback into the same bounded decision. Known range/LOS/resource blockers can reject an action; unknown native legality stays explicitly unverified. Acceptance means schema/references/freshness validated for a supervised dry-run, not native legal permission. No deterministic tactic or fallback action is selected. See PHASE1A_TESTING.md for limits and real-test status.
 
 ## One bounded decision
 
