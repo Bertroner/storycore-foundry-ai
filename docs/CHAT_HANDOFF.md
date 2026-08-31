@@ -234,3 +234,20 @@ Verification: npm run check passed **85/85 tests**, typecheck/build; separate of
 **Exact next step: review the harness and CASTER_NOT_FOUND result. STOP before any cast.** A suitable existing combat participant must satisfy discovery before a setup can be reviewed; no manual IDs are required. Run is deliberately disabled in this discovery build, with no activation IPC/live dispatcher. The one-shot guard is tested with fake ports; a later separately authorized live binding must supply scoped observation and safe target-state handling or stop uncertain. This checkpoint does not authorize implementing Phase 2 or production execution. Commit/push: **Automate Fire Bolt test discovery**.
 
 Phase 0 remains COMPLETE. Phase 1A live Foundry -> normalization -> real Qwen decision remains proven; full acceptance OPEN, production execution DISABLED. Universal Action Normalization, disposition semantics, compact DecisionView and the PLANNING_UNAVAILABLE loop remain pending and untouched. Foundry stays 12.343 / D&D5e 3.3.1; no LLM calls, spell casts or live writes were made by this harness task.
+
+
+## Latest checkpoint — Working token-control architecture (2026-09-01)
+
+The pinned donor modules and existing project audits have been synthesized into [WORKING_TOKEN_CONTROL_ARCHITECTURE.md](WORKING_TOKEN_CONTROL_ARCHITECTURE.md). This is the target architecture for a usable token-controlling version; it supersedes the earlier narrow Fire Bolt harness as the production design. No production execution, Foundry write, LLM call, live combat test, donor edit or Foundry upgrade was performed in this checkpoint.
+
+The key decision is to keep Foundry API Bridge as the sole command bus and D&D5e/Midi as the rules authority. StoryCore provides narrative context and the real LLM selects an offered structured intent. Deterministic code only reads, projects capabilities, validates fresh scope, compiles a small command allowlist and observes the result.
+
+The production identity boundary is `sceneId + tokenId -> TokenDocument.actor`, not a linked world Actor requirement. This token-scoped effective Actor read supports linked and unlinked/synthetic tokens, distinguishes duplicate instances and resolves the actual Actor-owned Item. Native `hasPlayerOwner` controls AI eligibility; Foundry disposition and StoryCore relationship remain separate.
+
+Weapons, spells, features and consumables use one structural `ActionCapability` model with item-family projectors selected by native type/fields, never Item names. Skills/abilities use separate context-gated check capabilities. Full internal state remains with the validator; the LLM receives a compact `DecisionView`. Unsupported or truncated capabilities fail visibly rather than being silently omitted or replaced by deterministic tactics.
+
+The bounded episode is OBSERVE -> LLM DECIDE -> VALIDATE -> COMMAND -> OBSERVE. It permits movement, Item activation and end-turn across fresh snapshots while preserving hard model/plan/repair/time/write limits. `PLANNING_UNAVAILABLE` must stop immediately. Ambiguous writes are observed and stopped without retry.
+
+The smallest Bridge work is: token-scoped Actor context read, read-only path planning using Bridge's existing `findGridPath`, plan-authorized movement, token-scoped legacy `dnd5e/activate-item` with exact target lifecycle and correlated Midi observation, and guarded next-turn. These changes belong in a maintained Bridge fork/extension, never in `_references/`.
+
+**Exact next implementation stage: Phase 2A — Token-scoped capability foundation.** First add the read-only `get-token-actor-context` seam and strict linked/unlinked/player-ownership fixtures. Then add generic legacy weapon/spell/feature/consumable projection plus compact DecisionView coverage. Do not start live writes until that read-only foundation is reviewed. Existing POCs are not to be repeated; new verification targets only new seams.
