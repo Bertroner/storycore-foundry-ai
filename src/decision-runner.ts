@@ -73,6 +73,9 @@ export class DecisionRunner {
             event.response = response;
             planFeedback.push({ requestStepId: request.stepId, summary: null,
               error: { code: "PLANNING_UNAVAILABLE", message: "Phase 1A has no path preview implementation; no route or planId offered." } });
+            // With no planner there is no valid planId a later response could use.
+            // End this supervised decision instead of spending the snapshot on more model calls.
+            status = "PLANNING_UNAVAILABLE"; break;
           } else {
             event.validation = "SCHEMA_REFERENCES_AND_FRESHNESS_VALID"; event.response = response;
             event.status = "DRY-RUN VALIDATED INTENT"; accepted = true; status = "DRY-RUN VALIDATED INTENT";

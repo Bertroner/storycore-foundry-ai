@@ -167,15 +167,17 @@ test("read timeout does not replay; disconnect rejects pending and changes epoch
   const pending = bridge.read("get-world-info", {}); const epoch = bridge.epoch; bridge.disconnect();
   await assert.rejects(pending, /BRIDGE_DISCONNECTED/); assert.notEqual(bridge.epoch, epoch);
 });
-test("bounded loop returns planning unavailable then accepts provider-chosen final; no Bridge writes", async () => {
+test("valid PLAN_REQUEST stops immediately when planning is unavailable; no Bridge writes", async () => {
   const mock = makeBridge(); let calls = 0; const seen: DecisionRequestV1[] = [];
   const runner = new DecisionRunner(new CombatSensor(mock.bridge), { async decide(request) {
     seen.push(structuredClone(request)); return reply(JSON.stringify(calls++ === 0 ? plan(request) : final(request, "bow")));
   } }, () => []);
   const result = await runner.run(fixture, mind, new AbortController().signal);
-  assert.equal(result.status, "DRY-RUN VALIDATED INTENT"); assert.equal(result.writesDispatched, 0);
-  assert.equal(result.events[0]?.status, "PLANNING_UNAVAILABLE"); assert.equal(seen[1]?.planFeedback[0]?.summary, null);
-  assert.equal(seen[0]?.decisionId, seen[1]?.decisionId); assert.equal(seen[1]?.limits.planRequestsRemaining, 1);
+  assert.equal(calls, 1); assert.equal(seen.length, 1);
+  assert.equal(result.status, "PLANNING_UNAVAILABLE"); assert.equal(result.accepted, false);
+  assert.equal(result.events.length, 1); assert.equal(result.events[0]?.status, "PLANNING_UNAVAILABLE");
+  assert.equal(result.writesDispatched, 0);
+  assert.equal(seen[0]?.limits.planRequestsRemaining, 2);
   assert.ok(mock.calls.every(c => READ_COMMANDS.includes(c.type)));
   assert.ok(!mock.calls.some(c => c.type === "plan-token-path" as ReadCommand));
 });
@@ -185,12 +187,12 @@ test("malformed responses get at most two repair continuations, no fallback or a
   const result = await runner.run(fixture, mind, new AbortController().signal);
   assert.equal(calls, 3); assert.equal(result.accepted, false); assert.equal(result.status, "VALIDATION_LIMIT");
 });
-test("repeated PLAN_REQUEST never exceeds two previews; no autonomous tool loop", async () => {
+test("unavailable planning never permits a repeated PLAN_REQUEST", async () => {
   const mock = makeBridge(); let calls = 0;
   const runner = new DecisionRunner(new CombatSensor(mock.bridge), { async decide(req) { calls++; return reply(JSON.stringify(plan(req))); } }, () => []);
   const result = await runner.run(fixture, mind, new AbortController().signal);
-  assert.equal(calls, 3); assert.equal(result.status, "PLAN_LIMIT"); assert.equal(result.accepted, false);
-  assert.equal(result.events.filter(e => e.status === "PLANNING_UNAVAILABLE").length, 2);
+  assert.equal(calls, 1); assert.equal(result.status, "PLANNING_UNAVAILABLE"); assert.equal(result.accepted, false);
+  assert.equal(result.events.filter(e => e.status === "PLANNING_UNAVAILABLE").length, 1);
 });
 test("stale state after real-provider boundary is rejected before accepting result", async () => {
   const mock = makeBridge();

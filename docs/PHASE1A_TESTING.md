@@ -82,7 +82,7 @@ Detection is on demand only, performs no model call or writes, and invalidates i
 Current runtime results (not all are the desired acceptance behavior):
 
 - DRY-RUN VALIDATED INTENT: final schema, IDs, known blockers and snapshot freshness passed. It is **not proof of full native action legality**; budgets/effects/perception remain qualified.
-- PLANNING_UNAVAILABLE on an event: a schema-valid goal was requested, but the adapter offers no plan or route. The current runner incorrectly continues the bounded LLM loop when pathPreview=false; it does NOT stop at the first unavailable result. Desired next-stage behavior is PLANNING_UNAVAILABLE -> STOP. No change is implemented here.
+- PLANNING_UNAVAILABLE on an event: a schema-valid goal was requested, but the adapter offers no plan or route. The runner now stops the supervised decision immediately when pathPreview=false. It does not ask the model again for an unusable planId.
 - A clear rejection/pause: unknown ID, known out-of-range/blocked LOS, stale read, unsupported scope, schema/provider error or limit. No automatic fallback tactic, movement or end-turn occurs.
 
 One click is one decision, at most two plan attempts, two repair continuations, five model calls and 60 seconds from the captured snapshot (PHASE1A_DECISION_LIFETIME_MS). Snapshot expiresAt is also the decision deadlineAt; provider calls and continuations share the remaining time and cannot extend it. No next-NPC loop. Provider calls have no hidden retries. Failed/invalid responses consume their slots. A final seals that invocation. Repeated completed runDecision requestId returns the cached result, changed body is rejected; concurrent requests are refused. At most 100 distinct runs per service process; restart explicitly for another session.
@@ -147,7 +147,7 @@ Observed orchestration sequence (four model responses, followed by final status)
 4. After repair, Qwen requested PLAN_REQUEST again.
 5. Final status was PLAN_LIMIT.
 
-**Open orchestration bug, not fixed:** src/decision-runner.ts::DecisionRunner.run records PLANNING_UNAVAILABLE and appends planFeedback without a terminating break/return; its bounded while loop continues. Existing regression tests also expect continuation. Desired supervised Phase 1A behavior is valid PLAN_REQUEST + pathPreview=false -> PLANNING_UNAVAILABLE -> STOP. That change is a separate next-stage task. Current limits still bound the loop; they do not make the extra calls correct for this checkpoint.
+**Historical orchestration defect (resolved in the latest checkpoint below):** the live run at this checkpoint showed DecisionRunner continuing after PLANNING_UNAVAILABLE. The later fix adds an immediate terminating return path and regression tests now require valid PLAN_REQUEST + pathPreview=false -> PLANNING_UNAVAILABLE -> STOP.
 
 Recorded real Qwen latencies in this decision were approximately 2778, 9241, 2351 and 9766 ms. A separate earlier call reached the old timeout at 29999 ms. The unchanged 60000 ms lifetime is an emergency supervised deadline shared with snapshot expiry, not a normal expected NPC-turn latency or performance target.
 
@@ -155,7 +155,7 @@ Recorded real Qwen latencies in this decision were approximately 2778, 9241, 235
 
 The following work is recorded but NOT started or implemented by this checkpoint. Full Phase 1A acceptance remains open because of the orchestration loop, incomplete action catalogue and unresolved disposition semantics.
 
-1. **PLANNING_UNAVAILABLE orchestration loop.** Implement and verify the stop behavior described above in a separately authorized task; do not add path planning or execution to work around it.
+1. **PLANNING_UNAVAILABLE orchestration loop (resolved later).** The latest checkpoint below implements and verifies immediate stop behavior without adding path planning or execution.
 2. **Universal Action Normalization / Shortbow omitted.** The model saw only Scimitar with omittedActions=4. Previously known Goblin items include Scimitar (mVZ4LasR8WtG2fzY), Shortbow (T7E8xxeseGuOZWpV) and Nimble Escape (Zkc9crbT8rO35I4O). Shortbow was absent from the model catalogue; the cause is not established by this checkpoint. The first priority of the next stage is a universal Foundry/D&D5e Item -> semantic capability audit, not an item-name fix such as if item.name === "Shortbow" or hundreds of per-item handlers. Future audit categories: legacy melee weapon, legacy ranged weapon, monster/class feature, spell attack, save spell, healing and AoE. These are audit categories, not newly enabled execution scope.
 3. **Disposition semantics.** Ethan arrived as disposition=friendly while being the Goblin's intended test target. Investigate what Foundry Token disposition means, relative to whom, what Bridge emits, how normalization should represent combat hostility, and how StoryCore relationships contribute. Do not equate the observed value with NPC-relative hostility or apply a hardcoded replacement. No disposition change is made here.
 
@@ -207,3 +207,12 @@ Click **Cancel decision** to abort a model call and pause; pending reads may tak
 Next separately authorized stage: OPTIMIZATION / GENERALIZATION, first auditing universal Item-to-capability normalization, then also addressing the unavailable-planning loop, disposition semantics and compact DecisionView. **This checkpoint stops after documentation, npm run check, commit and push.** No implementation, additional live tests or execution is authorized here.
 
 Electron security/IPC module map: [DESKTOP_BOUNDARY.md](DESKTOP_BOUNDARY.md). No settings, decision, or generic Bridge commands are exposed through HTTP.
+
+
+## Latest checkpoint — Stop after unavailable planning (2026-09-01)
+
+Operator-supplied live evidence from the packaged read-only build confirmed the known orchestration defect. The first real Qwen response was a schema/reference-valid PLAN_REQUEST to approach the selected target using the offered ranged dagger. That response completed in 33,872 ms and correctly produced PLANNING_UNAVAILABLE because pathPreview=false and no plans were offered. The old runner then made additional model calls: an invented move planId was rejected, another PLAN_REQUEST again produced PLANNING_UNAVAILABLE, and a fourth call reached the shared 60-second deadline. Final elapsed time was 60,002 ms. Execution remained DISABLED and writesDispatched remained 0.
+
+`DecisionRunner.run` now terminates the current decision immediately after that first valid unavailable PLAN_REQUEST. The returned status is PLANNING_UNAVAILABLE, accepted=false and writesDispatched=0. No second model call occurs, no fabricated plan is offered, and all existing deadline, repair, response, cancellation, stale-state and read-only protections remain active.
+
+Regression coverage proves both a first valid PLAN_REQUEST and a repair followed by a valid PLAN_REQUEST stop without later provider calls. This fix adds no pathfinding, movement, Item activation, Midi execution, turn advancement or other Foundry write. It does not make Phase 1A live acceptance complete; a new live run is still required to confirm the packaged behavior.

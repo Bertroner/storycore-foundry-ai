@@ -10,7 +10,7 @@ import { OpenRouterDecisionProvider } from "../src/openrouter-provider.js";
 import { ProviderFailure } from "../src/llm-gateway.js";
 const meta = { provider: "TEST_DOUBLE", model: "TEST_DOUBLE", returnedModel: null, temperature: .25, maxOutputTokens: 700, format: "json", latencyMs: 0, requestBytes: 0, approximateTokens: 0, decisionId: "test", stepId: "test", snapshotId: "test" };
 const base = (r: DecisionRequestV1) => ({ schemaVersion: "1.0", decisionId: r.decisionId, snapshotId: r.state.snapshotId, stepId: r.stepId });
-test("mixed invalid/plan/final responses exhaust exactly five total model slots without resetting deadline", async () => {
+test("repair followed by valid unavailable plan stops without later model responses", async () => {
   const mock = makeBridge(); const requests: DecisionRequestV1[] = []; let n = 0;
   const runner = new DecisionRunner(new CombatSensor(mock.bridge), { async decide(r) {
     requests.push(structuredClone(r)); n++;
@@ -22,11 +22,11 @@ test("mixed invalid/plan/final responses exhaust exactly five total model slots 
     return { text: JSON.stringify(response), metadata: meta };
   } }, () => []);
   const result = await runner.run(fixture, mind, new AbortController().signal);
-  assert.equal(n, 5); assert.equal(result.accepted, true);
+  assert.equal(n, 2); assert.equal(result.accepted, false); assert.equal(result.status, "PLANNING_UNAVAILABLE");
   assert.equal(new Set(requests.map(r => r.deadlineAt)).size, 1);
   assert.equal(new Set(requests.map(r => r.decisionId)).size, 1);
-  assert.deepEqual(requests.map(r => r.limits.modelResponsesRemaining), [5, 4, 3, 2, 1]);
-  assert.equal(requests[4]?.limits.planRequestsRemaining, 0); assert.equal(requests[4]?.limits.repairResponsesRemaining, 0);
+  assert.deepEqual(requests.map(r => r.limits.modelResponsesRemaining), [5, 4]);
+  assert.equal(requests[1]?.limits.planRequestsRemaining, 2); assert.equal(requests[1]?.limits.repairResponsesRemaining, 1);
   assert.equal(result.writesDispatched, 0);
 });
 test("secret accidentally placed in mind fixture prevents any provider call", async () => {
