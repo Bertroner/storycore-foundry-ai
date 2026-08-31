@@ -2,6 +2,8 @@
 
 Implemented boundary: READ → NORMALIZE → REAL OpenRouter request → strict decision validation → stored dry-run result. **No Foundry writes exist in this runtime.** Production entry points cannot select a mock provider; test doubles exist only in tests/.
 
+Current checkpoint: real live read -> normalization -> Qwen tactical response is proven; full Phase 1A acceptance remains OPEN. The operator-reported evidence and unresolved issues are recorded below. This checkpoint performs verification/documentation only, with no new live run or production change.
+
 ## Install and start
 
 Use PowerShell in the repository. Verified locally with Node 24.15.0, npm 11.12.1 and Windows PowerShell for DPAPI. Node >=22.14 is required; no global software is installed by this project.
@@ -77,17 +79,17 @@ Detection uses the pinned Bridge v8.11.2 contract: `src/commands/types.ts::GetSc
 
 Detection is on demand only, performs no model call or writes, and invalidates its previous result if refresh fails. Selected targets are bound to main's latest detection; reconnects invalidate the session identity. Schema failures retain safe boundary labels such as BRIDGE_DATA_INVALID:get-combat-state:current. The window gives a readable instruction alongside the code. If Bridge cannot read an active combat, start combat and make an NPC current before detecting again.
 
-Expected terminal results:
+Current runtime results (not all are the desired acceptance behavior):
 
 - DRY-RUN VALIDATED INTENT: final schema, IDs, known blockers and snapshot freshness passed. It is **not proof of full native action legality**; budgets/effects/perception remain qualified.
-- PLANNING_UNAVAILABLE on an event: the LLM requested a schema-valid goal. No plan-token-path command was sent, no route/planId was invented. Feedback returns into the same bounded decision; a later final may be accepted.
+- PLANNING_UNAVAILABLE on an event: a schema-valid goal was requested, but the adapter offers no plan or route. The current runner incorrectly continues the bounded LLM loop when pathPreview=false; it does NOT stop at the first unavailable result. Desired next-stage behavior is PLANNING_UNAVAILABLE -> STOP. No change is implemented here.
 - A clear rejection/pause: unknown ID, known out-of-range/blocked LOS, stale read, unsupported scope, schema/provider error or limit. No automatic fallback tactic, movement or end-turn occurs.
 
 One click is one decision, at most two plan attempts, two repair continuations, five model calls and 60 seconds from the captured snapshot (PHASE1A_DECISION_LIFETIME_MS). Snapshot expiresAt is also the decision deadlineAt; provider calls and continuations share the remaining time and cannot extend it. No next-NPC loop. Provider calls have no hidden retries. Failed/invalid responses consume their slots. A final seals that invocation. Repeated completed runDecision requestId returns the cached result, changed body is rejected; concurrent requests are refused. At most 100 distinct runs per service process; restart explicitly for another session.
 
-## Live acceptance matrix — perform manually
+## Live acceptance matrix - deferred follow-up
 
-After the first supported run, manually move the target close, farther away, then change LOS if practical. Click Detect/Refresh after each manual change, inspect selected targets and reconfirm the attestation before each fresh decision. Do not let this adapter move a token.
+For a separately authorized follow-up after reviewing the open issues, vary target distance/LOS manually in Foundry. Do not perform those tests as part of this documentation checkpoint. Click Detect/Refresh after each manual change, inspect selected targets and reconfirm the attestation before each fresh decision. Do not let this adapter move a token.
 
 Record for each run: time, decisionId, runtime versions, selected model, state snapshot/bytes, PLAN_REQUEST/FINAL_INTENT, validator status, latency and zero writes. Different intentions are observations of the real model, not pass criteria forced by code. If a target is no longer perceived, uncheck it in the detected list; do not leak its current position to the model. A wall test with an actually known/perceived target may show a blocking wall and a safely rejected attack.
 
@@ -103,12 +105,61 @@ Record for each run: time, decisionId, runtime versions, selected model, state s
 | npm run test:desktop | Real Electron 44.0.0 window/preload/main test passed using fake credentials. OS sandbox enabled, renderer Node absent, network denied, fields empty for saved keys, DPAPI clear passed; failed Save retained typed values, successful Save cleared fields with confirmation, and disk reload preserved the saved replacement; zero Bridge writes. Offline Detect/deselect/attest/Run through real IPC and a local fixture Bridge also passed; the test-only model received no deselected target. Screenshot inspected. |
 | npm run package | Portable Windows x64 build succeeded; archive excludes donors, tests and settings. |
 | Packaged startup | Visible StoryCore Foundry AI - Phase 1A window appeared; /health returned status=ok and execution=DISABLED. No combat/model action triggered by this startup check. |
-| Real authenticated OpenRouter / live Foundry acceptance | No new authenticated model or combat decision acceptance was performed in this UI rework. Earlier live end-to-end acceptance remains unverified. |
+| Real authenticated OpenRouter / live Foundry | Operator-reported live Goblin state reached Qwen and produced a SCHEMA_AND_REFERENCES_VALID approach PLAN_REQUEST at 2778 ms. The whole run ended PLAN_LIMIT with zero writes. The vertical slice through the first tactical response is proven; full acceptance remains open. |
 | Manual close/far/LOS variation | Not performed in this checkpoint. |
 | Foundry mutation | No writes added or dispatched by the test harness. No movement/item/Midi/path-planning implementation or donor modification. |
 
-Provider/unit tests use test doubles; they are not proof of actual Qwen inference. The first operator-reported real Foundry read reached the adapter but stopped with BRIDGE_DATA_INVALID, stateBytes=0 and writesDispatched=0. It did not reach normalization or Qwen and is not Phase 1A live acceptance. The token-detail contract mismatch exposed by that attempt is fixed as described below; no new live test was performed for the fix. PROVEN_POC.md retains the earlier live evidence; **movement-exhaustion-across-multiple-NPC-turns is not independently proven**.
+Provider/unit tests use test doubles; they are not proof of actual Qwen inference. The first operator-reported real Foundry read reached the adapter but stopped with BRIDGE_DATA_INVALID, stateBytes=0 and writesDispatched=0. It did not reach normalization or Qwen and is not Phase 1A live acceptance. The token-detail contract mismatch exposed by that early attempt was fixed as described below. The later real-Qwen run recorded here supersedes that earlier failure as the latest live milestone; no live test was rerun during this documentation checkpoint. PROVEN_POC.md retains the earlier live evidence; **movement-exhaustion-across-multiple-NPC-turns is not independently proven**.
 
+
+## Phase 1A live LLM checkpoint - 2026-08-31
+
+Evidence source: the operator supplied the results of a real supervised run after the timeout fix. This was not a mock or fake provider. This documentation checkpoint does not rerun the live test or import raw runtime logs. Code reviewed before the checkpoint: dab5cb31b0dc850dbd4d6fd02f0caa467e16a6ea (Increase Phase 1A LLM decision timeout), matching origin/main after fetch.
+
+**Phase 1A real-LLM vertical slice is proven end-to-end through live Foundry read -> normalization -> real Qwen tactical decision, with zero Foundry writes. Full Phase 1A acceptance remains OPEN.** The run proved the first schema/reference-valid tactical response, not a completed final intent or executable combat AI.
+
+Runtime: Foundry VTT 12.343, D&D5e 3.3.1, Foundry API Bridge, OpenRouter, qwen/qwen3-30b-a3b-instruct-2507. The observed pipeline was LIVE FOUNDRY STATE -> CombatSensor -> CombatNormalizer -> OpenRouter -> REAL QWEN RESPONSE.
+
+| Live observation | Recorded value |
+|---|---|
+| Current NPC | Goblin; HP 7/7; movement 30 ft (capacity, not proof of remaining turn allowance) |
+| Perceived target | Ethan; distance 40 ft; perceived=true |
+| Offered action catalogue | Scimitar only; range 5 ft; omittedActions=4 |
+| Development personality | Cautious creature that values survival. |
+| Development motivation | Defend its position and survive. |
+| First Qwen latencyMs | 2778 |
+| First returnedModel | qwen/qwen3-30b-a3b-instruct-2507 |
+| First response | PLAN_REQUEST; goal.kind=approach; target Ethan; action Scimitar |
+| First response validation | SCHEMA_AND_REFERENCES_VALID |
+| Planning capability | pathPreview=false; movement.plans=[] |
+| Whole-run safety | execution=DISABLED; writesDispatched=0 |
+| Final run status | PLAN_LIMIT, not a validated final intent |
+
+REAL QWEN received LIVE NORMALIZED FOUNDRY COMBAT STATE and independently chose the approach intent. The adapter did not choose a distance > X -> approach rule or substitute scripted deterministic combat AI. The LLM owned the tactical decision; deterministic code validated schema/references. This does not prove native action legality, path availability or action execution.
+
+The entire live run remained READ-ONLY: no move-token, activate-item, next-turn, HP mutation, Actor mutation, Midi execution, other Foundry write or StoryCore memory write occurred. Recording a local dry-run diagnostic is not a memory update. These live observations are separate from the older POC claims in PROVEN_POC.md.
+
+Observed orchestration sequence (four model responses, followed by final status):
+
+1. Qwen requested approach to Ethan with Scimitar; SCHEMA_AND_REFERENCES_VALID; runtime reported PLANNING_UNAVAILABLE.
+2. The runner called Qwen again instead of stopping. Qwen again requested approach to Ethan; runtime again reported PLANNING_UNAVAILABLE.
+3. Qwen attempted FINAL_INTENT with kind=move and planId="default", although no such plan had been offered. The observed response was rejected with DECISION_SCHEMA_INVALID. No route or movement was authorized; the supplied evidence does not include the full rejected JSON, so no narrower schema-failure cause is asserted.
+4. After repair, Qwen requested PLAN_REQUEST again.
+5. Final status was PLAN_LIMIT.
+
+**Open orchestration bug, not fixed:** src/decision-runner.ts::DecisionRunner.run records PLANNING_UNAVAILABLE and appends planFeedback without a terminating break/return; its bounded while loop continues. Existing regression tests also expect continuation. Desired supervised Phase 1A behavior is valid PLAN_REQUEST + pathPreview=false -> PLANNING_UNAVAILABLE -> STOP. That change is a separate next-stage task. Current limits still bound the loop; they do not make the extra calls correct for this checkpoint.
+
+Recorded real Qwen latencies in this decision were approximately 2778, 9241, 2351 and 9766 ms. A separate earlier call reached the old timeout at 29999 ms. The unchanged 60000 ms lifetime is an emergency supervised deadline shared with snapshot expiry, not a normal expected NPC-turn latency or performance target.
+
+## Open issues for OPTIMIZATION / GENERALIZATION
+
+The following work is recorded but NOT started or implemented by this checkpoint. Full Phase 1A acceptance remains open because of the orchestration loop, incomplete action catalogue and unresolved disposition semantics.
+
+1. **PLANNING_UNAVAILABLE orchestration loop.** Implement and verify the stop behavior described above in a separately authorized task; do not add path planning or execution to work around it.
+2. **Universal Action Normalization / Shortbow omitted.** The model saw only Scimitar with omittedActions=4. Previously known Goblin items include Scimitar (mVZ4LasR8WtG2fzY), Shortbow (T7E8xxeseGuOZWpV) and Nimble Escape (Zkc9crbT8rO35I4O). Shortbow was absent from the model catalogue; the cause is not established by this checkpoint. The first priority of the next stage is a universal Foundry/D&D5e Item -> semantic capability audit, not an item-name fix such as if item.name === "Shortbow" or hundreds of per-item handlers. Future audit categories: legacy melee weapon, legacy ranged weapon, monster/class feature, spell attack, save spell, healing and AoE. These are audit categories, not newly enabled execution scope.
+3. **Disposition semantics.** Ethan arrived as disposition=friendly while being the Goblin's intended test target. Investigate what Foundry Token disposition means, relative to whom, what Bridge emits, how normalization should represent combat hostility, and how StoryCore relationships contribute. Do not equate the observed value with NPC-relative hostility or apply a hardcoded replacement. No disposition change is made here.
+
+Also investigate payload size in the next stage: requestBytes approximately 12388 and approximateTokens approximately 3097 for a simple Goblin decision. These are provider-request metrics, not a measurement of CombatState alone. Consider FULL INTERNAL COMBAT STATE for runtime/validator versus COMPACT LLM DECISION VIEW containing only decision-relevant facts. No payload optimization, context schema change or tactical logic is implemented in this checkpoint.
 
 ## Live token contract correction (2026-08-31)
 
@@ -119,7 +170,7 @@ Verified the read-only local donor at v8.11.2, commit f71ea11b708d78c85c979ddae0
 
 Disposition mapping is explicit; invalid values, scene mismatches and secret perceived targets still reject. Schema errors now report fixed READ/field labels, e.g. BRIDGE_DATA_INVALID:get-token:disposition. All eight READ boundaries are labelled; no payload values, arbitrary record keys, raw Actor/Token dumps or Zod messages enter these errors. Nested failures identify their safe top-level field (e.g. tokens), not raw paths.
 
-npm run check passed 48/48 tests, including all previous 41 and seven added contract/diagnostic regressions. Tests use distinct numeric-summary and string-detail fixtures. The runner regression confirms an invalid detail stops before normalization/model invocation with zero writes and preserves only the safe diagnostic. The portable desktop build is refreshed for the next manual live test. No movement, activation, Midi, next-turn, path planning, donor modification or Foundry upgrade was performed. **Stop for another live test; do not mark live acceptance complete.**
+npm run check passed 48/48 tests, including all previous 41 and seven added contract/diagnostic regressions. Tests use distinct numeric-summary and string-detail fixtures. The runner regression confirms an invalid detail stops before normalization/model invocation with zero writes and preserves only the safe diagnostic. The portable desktop build is refreshed for the next manual live test. No movement, activation, Midi, next-turn, path planning, donor modification or Foundry upgrade was performed. **Historical fix checkpoint; the later real-Qwen evidence above now applies. Full acceptance remains open.**
 
 ## Supervised real-LLM timeout correction
 
@@ -129,7 +180,7 @@ The supervised Phase 1A lifetime is now **60 seconds**, defined once as PHASE1A_
 
 Timeout results report DECISION_DEADLINE with timing.timeoutMs=60000, timing.elapsedMs (milliseconds since the captured snapshot) and timing.providerLatencyMs (elapsed time of the last provider call, including capability lookup). The pause event carries timeoutMs and latencyMs too. These fixed numeric diagnostics also enter the sanitized summary log; no API key or Authorization header is included. Cancellation requested by the user remains CANCELLED. Connection-test and Bridge-read timeouts are unchanged.
 
-npm run check passed **63/63 tests**, including fake-clock tests for a response after 30 but before 60 seconds, shared snapshot/decision expiry, OpenRouter cancellation at the deadline, rejection of an uncooperative late response, expiry during readback and already-expired snapshots. No real minute-long provider call or live Foundry test was performed for this fix. Restart the refreshed portable build for the next supervised manual test. **Phase 1A live acceptance remains unverified.**
+npm run check passed **63/63 tests**, including fake-clock tests for a response after 30 but before 60 seconds, shared snapshot/decision expiry, OpenRouter cancellation at the deadline, rejection of an uncooperative late response, expiry during readback and already-expired snapshots. No real minute-long provider call or live Foundry test was performed for this fix. The 60-second value remains unchanged as an emergency supervised ceiling, not expected NPC-turn latency. **The later live milestone above is proven through the first tactical response; full Phase 1A acceptance remains open.**
 
 
 Current timeout-fix portable artifact: release/phase1a-60s/StoryCoreFoundryAI-win32-x64/StoryCoreFoundryAI.exe. The standard release folder could not be replaced while the previous app was open (Windows EBUSY); it was not updated. The separate package uses the same saved DPAPI settings. Close the old window before launching this build.
@@ -153,6 +204,6 @@ The desktop window shows the latest result. Sanitized per-decision JSON files ar
 
 Click **Cancel decision** to abort a model call and pause; pending reads may take up to their five-second timeout. Close the desktop window to stop the app. Main cancels pending model work, disconnects Bridge, rejects pending reads and closes the listener; nothing is replayed. In development, Ctrl+C is also available, preferably after Cancel/closing the window. Foundry can continue manually. Restore your prior local Bridge settings manually if desired; do not reconnect a remote controller unintentionally.
 
-Next step: complete and review the real authenticated/manual acceptance matrix above. **Stop before path-preview or any command execution implementation.** Movement and Midi execution require a separate reviewed checkpoint.
+Next separately authorized stage: OPTIMIZATION / GENERALIZATION, first auditing universal Item-to-capability normalization, then also addressing the unavailable-planning loop, disposition semantics and compact DecisionView. **This checkpoint stops after documentation, npm run check, commit and push.** No implementation, additional live tests or execution is authorized here.
 
 Electron security/IPC module map: [DESKTOP_BOUNDARY.md](DESKTOP_BOUNDARY.md). No settings, decision, or generic Bridge commands are exposed through HTTP.
