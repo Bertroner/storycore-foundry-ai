@@ -7,6 +7,7 @@ Branch: main
 ## Phase status
 
 **Phase 0 is COMPLETE.**
+**Pre-Phase-2 LAARU spell-compendium audit complete; awaiting review, no Phase 2 production implementation.**
 **Current phase: Phase 1A live read -> normalization -> real Qwen tactical decision proven; full acceptance OPEN; execution DISABLED.**
 **Exact next stage: OPTIMIZATION / GENERALIZATION, beginning with a universal Action Normalizer audit. Record only; do not begin it in this checkpoint.**
 
@@ -182,3 +183,19 @@ Checkpoint verification: npm run check passed (63/63 tests, typecheck and build)
 Commit only the safe documentation changes as **Record Phase 1A live LLM checkpoint** and push origin/main after npm run check. Stop; no next-stage implementation, action/disposition fixes, payload optimization or execution changes.
 
 PROJECT_STATE.md and CHAT_HANDOFF.md must stay aligned. Preserve the six completed audit documents as canonical inputs and PROVEN_POC.md as the authority for previous live evidence. Keep operator-supplied live evidence distinct from fixture tests and code inspection; do not invent additional live results.
+
+## Latest checkpoint — Pre-Phase-2 LAARU spell audit (2026-08-31)
+
+**Pre-Phase-2 LAARU spell-compendium audit complete. Phase 2 production implementation has not begun.** This additive checkpoint supersedes the earlier checkpoint's commit/stop instructions above; its Phase 1A evidence and open issues remain unchanged.
+
+New completed static evidence: [LAARU_SPELL_COMPENDIUM_AUDIT.md](LAARU_SPELL_COMPENDIUM_AUDIT.md), [spell-only mechanical dataset](../analysis/laaru-spells-mechanical.json) and [offline audit extractor](../analysis/extract-laaru-spells.cjs). The supplied laaru-dnd5-hw 3.64.0 snapshot declares 18 LevelDB packs compatible with Foundry 11–12 / D&D5e 3.2.0–3.3.99. All packs were inspected from disposable copies; no donor database was opened on write or migrated.
+
+- 640 standalone spell templates plus 9,452 Actor-embedded spell Items = **10,092 retained native spell documents**, without deduplication. All source identities are verified; embedded IDs include parent Actor scope. Zero non-spell documents enter the dataset.
+- All 10,092 spells lack system.activities; mixed legacy field shapes, structural families, 14 real representative templates, ambiguous semantics and possible source identity mechanisms are documented. Only 52 embedded Items carry direct resolvable references to the standalone LAARU spell pack. No name-based resolver or per-spell handlers were implemented.
+- Derived data contains bounded mechanical/identity fields, not descriptions/HTML/macros/scripts/arbitrary flags or secrets. All 7,505 donor file paths/content hashes stayed unchanged. No reusable donor license was verified; the audit does not authorize copying the original module's code or expressive content.
+- Compendium templates can inform future semantic understanding, but live Actor-owned Items remain authoritative for ownership/preparation/resources/modifications. The dataset is offline research, not connected to production and not a bulk LLM prompt.
+- Verification: independent source/field checks and a fresh-copy extraction check passed; npm run check passed **63/63 tests**, typecheck/build; git diff --check passed. Existing production code/tests/dependencies, the six canonical Phase 0 documents, PHASE1A_TESTING.md and PROVEN_POC.md are unchanged. No Foundry/LLM/Midi live test or live write occurred; execution remains DISABLED and Phase 1A acceptance OPEN.
+
+**Exact next step: review this audit, then separately authorize its proposed offline generic capability-coverage experiment. STOP until review.** The broader OPTIMIZATION / GENERALIZATION priority remains universal Action Normalization, not a Shortbow or spell-name handler. PLANNING_UNAVAILABLE orchestration loop, incomplete action catalogue and disposition semantics remain open and untouched; compact DecisionView is still proposed. No Phase 2 implementation, pathfinding, movement, item/Midi execution, turn advancement or Foundry/memory writes are authorized here.
+
+Commit this audit checkpoint as **Audit LAARU spell compendium**, push origin/main and stop. The earlier Phase 1A checkpoint's file list/commit instructions above describe that historical checkpoint, not this audit.
