@@ -40,7 +40,7 @@ Canonical read-only donor: `_references/foundry-api-bridge`, v8.11.2, commit `f7
 
 Both native ownership partitions are read with bounded pagination: `hasPlayerOwner=true` and `false`, 200 per page, at most eight pages each. Missing, overlapping or inconsistent results reject with an ownership error; absence from the player-owned list is **not** interpreted as proof of NPC ownership. Each capture also has a 100-read / 60-second bound and uses the existing per-read timeout. No User registry or raw ownership permission map is sent to the renderer.
 
-Control ownership is independent of disposition, Actor type/name and relationships. A player-owned Actor can only be offered as a target fixture, never an AI caster. No nearest-target, lowest-HP, faction or hostility inference is used. The predicate naming Fire Bolt is confined to this explicitly requested one-spell test fixture; it is not a production per-spell handler.
+Control ownership is independent of disposition, Actor type/name and relationships. A player-owned Actor can only be offered as a target fixture, never an AI caster. No nearest-target, lowest-HP, faction or hostility inference is used. The predicate naming Fire Bolt is confined to this explicitly requested one-spell test fixture; it is not a production per-spell handler. It accepts an exact slash-delimited `Fire Bolt` display-name segment so the audited localized LAARU label `Огненный снаряд / Fire bolt` resolves without fuzzy substring matching.
 
 ## Discovery and pre-call checks
 
@@ -68,7 +68,7 @@ The corrected discovery application's sanitized outcome was:
 }
 ```
 
-This status is emitted after successful capture of active combat/scene, version checks, token/ownership reads and the scope bracket, when the eligible caster set is empty. **It does not establish which specific eligibility requirement excluded a particular Actor.** No eligible caster or complete human-readable caster/target setup can be reported from this attempt; none was invented from the historical Mage/Goblin/Ethan examples. Actual owned Item verification and target selection were not completed live. The runtime stopped instead of choosing another Actor or changing the world.
+The UI and sanitized console output now list each captured participant name with a bounded eligibility reason (`PLAYER_CONTROLLED_TARGET`, `FIRE_BOLT_NOT_OWNED`, `MULTIPLE_OWNED_FIRE_BOLT_ITEMS`, `FIRE_BOLT_SHAPE_UNSUPPORTED`, token/visibility/defeat/link/identity exclusion codes, or `ELIGIBLE`), without IDs or raw Item/Actor fields. The first run emitted only `CASTER_NOT_FOUND`; at that point no specific exclusion was claimed. After adding bounded name/reason diagnostics and exact localized `/ Fire bolt` label support, a fresh live read observed `Маг: UNLINKED_ACTOR` and `Итан: PLAYER_CONTROLLED_TARGET`. Bridge connection, active combat membership and control ownership are therefore resolved; the Mage scene token has native `actorLink=false` and fails the explicit linked-Actor test boundary. Actual owned Item verification and target selection were not completed live. The runtime stopped instead of changing the token, choosing another Actor or writing to Foundry.
 
 | Evidence | Result / limit |
 |---|---|
@@ -93,7 +93,7 @@ After any dispatch attempt it requests fresh observation, including after dispat
 
 ## Verification and next boundary
 
-- `npm run check`: **84/84 tests passed**, including the existing 63 plus 21 Fire Bolt harness regressions; typecheck and build passed.
+- `npm run check`: **85/85 tests passed**, including the existing 63 plus 22 Fire Bolt harness regressions; typecheck and build passed.
 - `npm run test:fire-bolt-ui`: offline Electron UI/backend integration passed. The actual sandboxed renderer automatically displayed fixture Scene=Test Arena, Round=1, Caster=Mage; the operator-row simulation selected Alice from Ethan/Alice, and backend resolved `token-alice` plus the real fixture-owned Item. No manual IDs, network/provider call or live write. These are **fixture names**, not a claimed live detected setup.
 - `git diff --check`: passed. Only harness/reuse seams, tests, scripts and documentation are included. Local credentials, settings, DPAPI data, logs, screenshots, packaged binaries and donor repositories are excluded.
 

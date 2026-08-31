@@ -8,7 +8,7 @@ export interface BridgeSettings {
   saveBridgeKey(key: string): Promise<void>;
 }
 export type HarnessStatus = { connected: boolean; hasBridgeKey: boolean; execution: "DISABLED_REVIEW_REQUIRED";
-  writesDispatched: 0; view: ReturnType<FireBoltDiscovery["view"]> };
+  writesDispatched: 0; diagnostics: ReturnType<FireBoltDiscovery["diagnostics"]>; view: ReturnType<FireBoltDiscovery["view"]> };
 const bridgeKeyInput = z.object({ bridgeKey: z.string().trim().min(16).max(512) }).strict();
 
 export class FireBoltService {
@@ -18,7 +18,7 @@ export class FireBoltService {
   status(): HarnessStatus {
     const view=this.discovery.view();
     if (!this.reader.connected || (view && view.advanced.epoch!==this.reader.epoch)) this.discovery.invalidate();
-    return {connected:this.reader.connected,hasBridgeKey:this.settings?.hasBridgeKey()??false,execution:"DISABLED_REVIEW_REQUIRED",writesDispatched:0,view:this.discovery.view()};
+    return {connected:this.reader.connected,hasBridgeKey:this.settings?.hasBridgeKey()??false,execution:"DISABLED_REVIEW_REQUIRED",writesDispatched:0,diagnostics:this.discovery.diagnostics(),view:this.discovery.view()};
   }
   async saveBridgeKey(input: unknown): Promise<HarnessStatus> {
     ensure(this.settings,"BRIDGE_SETTINGS_UNAVAILABLE");

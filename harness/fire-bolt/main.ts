@@ -31,7 +31,7 @@ else {
     service.detect=async()=>{try{const view=await detect();console.log(redact(JSON.stringify({status:view.status,scene:view.scene,
       round:view.round,caster:view.caster,spell:view.spell,target:view.target,casters:view.casters.map(c=>c.name),targets:view.targets.map(t=>t.name),
       execution:view.execution,writesDispatched:0}),[settings.credentials().apiKey,settings.credentials().bridgeKey]));return view;
-    }catch(error){console.log(JSON.stringify({status:safeError(error),execution:"DISABLED_REVIEW_REQUIRED",writesDispatched:0}));throw error;}};
+    }catch(error){console.log(JSON.stringify({status:safeError(error),candidates:service.status().diagnostics,execution:"DISABLED_REVIEW_REQUIRED",writesDispatched:0}));throw error;}};
     await app.whenReady();const window=await createTestWindow(service,fileURLToPath(new URL("../../../",import.meta.url)));
     window.show();
     app.on("second-instance",()=>{if(!window.isDestroyed()){window.show();window.focus();}});

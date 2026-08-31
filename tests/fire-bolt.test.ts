@@ -22,6 +22,12 @@ test("Fire Bolt discovery resolves all IDs internally, native ownership override
   assert.equal(reader.calls.filter(c=>c.type==="filter-actors").every(c=>Object.keys(c.params).sort().join() === "hasPlayerOwner,limit,offset"),true);
   assert.ok(!JSON.stringify(view).includes("description"));assert.ok(!JSON.stringify(view).includes("<p>"));
 });
+test("audited localized slash label resolves Fire Bolt by exact segment without fuzzy matching",async()=>{
+  const reader=new FireBoltFixture();reader.participants[0]!.actor.items[0]!.name="Огненный снаряд / Fire bolt";
+  const view=await new FireBoltDiscovery(reader).detect();assert.equal(view.caster,"Mage");
+  reader.participants[0]!.actor.items[0]!.name="Not a Fire bolt variant";
+  await assert.rejects(()=>new FireBoltDiscovery(reader).detect(),/CASTER_NOT_FOUND/);
+});
 test("current eligible combatant wins without tactical sorting among NPC candidates",async()=>{
   const reader=new FireBoltFixture();reader.participants.unshift(participant("other","Other Mage",false));
   const v=await new FireBoltDiscovery(reader).detect();assert.equal(v.caster,"Mage");assert.equal(v.casters.length,1);
@@ -41,9 +47,11 @@ test("multiple fallback NPCs and targets require offered human-readable rows, ne
 test("no active combat emits NO_ACTIVE_COMBAT and never asks for an ID",async()=>{
   for(const started of [true,false]){const r=new FireBoltFixture();r.noCombat=started;r.started=started;await assert.rejects(()=>new FireBoltDiscovery(r).detect(),/NO_ACTIVE_COMBAT/);}
 });
-test("missing owned Fire Bolt stops instead of importing from Compendium or using another item",async()=>{
-  const r=new FireBoltFixture();r.participants[0]!.actor.items=[];
-  await assert.rejects(()=>new FireBoltDiscovery(r).detect(),/CASTER_NOT_FOUND/);
+test("missing owned Fire Bolt stops with safe human diagnostics instead of importing or exposing IDs",async()=>{
+  const r=new FireBoltFixture();r.participants[0]!.actor.items=[];const discovery=new FireBoltDiscovery(r);
+  await assert.rejects(()=>discovery.detect(),/CASTER_NOT_FOUND/);
+  assert.deepEqual(discovery.diagnostics(),[{name:"Mage",reason:"FIRE_BOLT_NOT_OWNED"},{name:"Ethan",reason:"PLAYER_CONTROLLED_TARGET"}]);
+  assert.equal(JSON.stringify(discovery.diagnostics()).includes("token-mage"),false);
 });
 test("unlinked, duplicate scene tokens and multiple owned Fire Bolt items fail caster discovery",async()=>{
   for(const mode of ["unlinked","duplicate","items"]){const r=new FireBoltFixture();const p=r.participants[0]!;

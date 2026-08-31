@@ -19,15 +19,18 @@ function options(id:string,rows:{row:string;name:string}[],selected:string|null)
   });
   select.value=selected??"";select.disabled=busy || rows.length===1;
 }
+function showDiagnostics(status:HarnessStatus){
+  text("candidateDiagnostics",status.diagnostics.map(row=>`${row.name}: ${row.reason}`).join("\n"));
+}
 function render(next:DiscoveryView){
-  view=next;text("scene",next.scene);text("combat",`Round ${next.round}`);text("current",next.currentCombatant??"No current combatant");
+  view=next;text("candidateDiagnostics","");text("scene",next.scene);text("combat",`Round ${next.round}`);text("current",next.currentCombatant??"No current combatant");
   options("caster",next.casters,next.casterRow);options("target",next.targets,next.targetRow);
   text("status",next.status);text("advanced",JSON.stringify(next.advanced,null,2));
 }
 async function perform(action:()=>Promise<Reply<DiscoveryView>>){
   if(busy)return; busy=true;element<HTMLButtonElement>("refresh").disabled=true;
   element<HTMLSelectElement>("caster").disabled=true;element<HTMLSelectElement>("target").disabled=true;text("status","Reading Foundry…");
-  try {const result=await action(); if(result.ok)render(result.data);else{view=null;text("status",result.error);text("advanced","");text("scene","—");text("combat","—");text("current","—");options("caster",[],null);options("target",[],null);}}
+  try {const result=await action(); if(result.ok)render(result.data);else{view=null;text("status",result.error);text("advanced","");text("scene","—");text("combat","—");text("current","—");options("caster",[],null);options("target",[],null);const current=await window.fireBolt.status();if(current.ok){connection(current.data);showDiagnostics(current.data);}}}
   catch {view=null;text("status","HARNESS_UNAVAILABLE");}
   finally{busy=false;element<HTMLButtonElement>("refresh").disabled=false;if(view)render(view);}
 }

@@ -31,6 +31,10 @@ type Participant = { actor: Actor; token: z.infer<typeof tokenSchema>; playerOwn
 export type Snapshot = { epoch: string; worldId: string; scene: z.infer<typeof sceneSchema>; combat: z.infer<typeof combatSchema>; participants: Participant[]; scopeKey: string; identityKey: string };
 type Caster = Participant & { item: Actor["items"][number] };
 export type Selection = { snapshot: Snapshot; caster: Caster; target: Participant };
+export type CasterDiagnostic = { name: string; reason: "PLAYER_CONTROLLED_TARGET" | "FIRE_BOLT_NOT_OWNED" |
+  "MULTIPLE_OWNED_FIRE_BOLT_ITEMS" | "FIRE_BOLT_SHAPE_UNSUPPORTED" | "TOKEN_INSTANCE_NOT_UNIQUE" |
+  "COMBAT_TOKEN_NOT_FOUND" | "HIDDEN_PARTICIPANT" | "DEFEATED_PARTICIPANT" | "COMBAT_IDENTITY_AMBIGUOUS" |
+  "UNLINKED_ACTOR" | "ELIGIBLE" };
 export type DiscoveryView = { detectionId: string; status: "READY_FOR_REVIEW" | "SELECT_CASTER" | "SELECT_TARGET";
   scene: string; round: number; currentCombatant: string | null; spell: "Fire Bolt";
   casters: { row: string; name: string }[]; targets: { row: string; name: string }[];
@@ -45,8 +49,12 @@ export function actorResources(actor: Actor) {
   const data = parse(z.object({ attributes: z.object({ hp: hpSchema }), spells: slotsSchema.optional(), resources: resourceSchema.optional() }), actor.system);
   return { hp: data.attributes.hp, spells: data.spells ?? {}, resources: data.resources ?? {} };
 }
+function isFireBoltName(name: string) {
+  // Exact slash-delimited display-name segment supports audited localized LAARU names without fuzzy matching.
+  return name.split("/").some(label => label.trim().toLocaleLowerCase("en-US") === "fire bolt");
+}
 function fireBolts(p: Participant) {
-  return p.actor.items.filter(item => item.type === "spell" && item.name.trim().toLowerCase() === "fire bolt" && item.system.level === 0);
+  return p.actor.items.filter(item => item.type === "spell" && isFireBoltName(item.name) && item.system.level === 0);
 }
 function suitableItem(item: Actor["items"][number]) {
   const parsed = spellSchema.safeParse(item.system);
@@ -59,10 +67,14 @@ function suitableItem(item: Actor["items"][number]) {
 export class FireBoltDiscovery {
   private latest: { snapshot: Snapshot; view: DiscoveryView; casters: Map<string,Caster>; targets: Map<string,Participant> } | null = null;
   private busy = false;
+  private lastCasterDiagnostics: CasterDiagnostic[] = [];
+  private captureExclusions: CasterDiagnostic[] = [];
   constructor(private reader: TestReader, private now = Date.now) {}
   view() { return this.latest ? structuredClone(this.latest.view) : null; }
+  diagnostics() { return structuredClone(this.lastCasterDiagnostics); }
   invalidate() { this.latest = null; }
   async capture(): Promise<Snapshot> {
+    this.captureExclusions=[];
     const epoch = this.reader.epoch; const deadline = this.now() + 60000;
     let reads = 0;
     const read = async (type: TestReadCommand, params: Record<string,unknown>) => {
@@ -96,9 +108,14 @@ export class FireBoltDiscovery {
     const participants: Participant[] = [];
     for (const c of combat.combatants) {
       // Count all scene instances, including hidden tokens; never pick the first duplicate.
-      const matches = tokens.tokens.filter(t => t.actorId === c.actorId);
-      if (matches.length !== 1 || matches[0]!.id !== c.tokenId || c.hidden || c.defeated || matches[0]!.hidden ||
-        combat.combatants.filter(o => o.actorId === c.actorId || o.tokenId === c.tokenId).length !== 1) continue;
+      const matches = tokens.tokens.filter(t => t.actorId === c.actorId);const displayName=plain(c.name)||"Unnamed participant";
+      if (matches.length !== 1) { this.captureExclusions.push({name:displayName,reason:"TOKEN_INSTANCE_NOT_UNIQUE"}); continue; }
+      if (matches[0]!.id !== c.tokenId) { this.captureExclusions.push({name:displayName,reason:"COMBAT_TOKEN_NOT_FOUND"}); continue; }
+      if (c.hidden || matches[0]!.hidden) { this.captureExclusions.push({name:displayName,reason:"HIDDEN_PARTICIPANT"}); continue; }
+      if (c.defeated) { this.captureExclusions.push({name:displayName,reason:"DEFEATED_PARTICIPANT"}); continue; }
+      if (combat.combatants.filter(o => o.actorId === c.actorId || o.tokenId === c.tokenId).length !== 1) {
+        this.captureExclusions.push({name:displayName,reason:"COMBAT_IDENTITY_AMBIGUOUS"}); continue;
+      }
       ensure(owners.has(c.actorId), "OWNERSHIP_UNVERIFIED");
       const token = matches[0]!;
       const tokenDoc = parse(documentSchema, await read("resolve-uuid", { uuid: `Scene.${scene.id}.Token.${token.id}` }));
@@ -107,7 +124,7 @@ export class FireBoltDiscovery {
         tokenDoc.parentUuid === `Scene.${scene.id}` && native._id === token.id && native.actorId === c.actorId &&
         native.x === token.x && native.y === token.y && native.hidden === token.hidden, "SCOPE_STALE");
       // Synthetic Actor overlays remain outside this isolated seam, including for a target.
-      if (!native.actorLink) continue;
+      if (!native.actorLink) { this.captureExclusions.push({name:displayName,reason:"UNLINKED_ACTOR"}); continue; }
       const actor = parse(actorSchema, await read("get-actor", { actorId: c.actorId }));
       ensure(actor.id === c.actorId && new Set(actor.items.map(i => i.id)).size === actor.items.length, "SCOPE_STALE");
       participants.push({ actor, token, linked: native.actorLink, playerOwned: owners.get(c.actorId)!, combatantId: c.id });
@@ -120,6 +137,16 @@ export class FireBoltDiscovery {
       items: p.actor.items.map(i => ({ id: i.id, name: i.name, type: i.type, system: i.system })) })));
     return { epoch, worldId: world.id, scene, combat, participants, scopeKey, identityKey };
   }
+  private buildCasterDiagnostics(snapshot: Snapshot): CasterDiagnostic[] {
+    return snapshot.participants.map(p => {
+      const name=plain(p.token.name || p.actor.name) || "Unnamed participant";
+      if (p.playerOwned) return {name,reason:"PLAYER_CONTROLLED_TARGET"};
+      const items=fireBolts(p);
+      if (!items.length) return {name,reason:"FIRE_BOLT_NOT_OWNED"};
+      if (items.length>1) return {name,reason:"MULTIPLE_OWNED_FIRE_BOLT_ITEMS"};
+      return {name,reason:suitableItem(items[0]!)?"ELIGIBLE":"FIRE_BOLT_SHAPE_UNSUPPORTED"};
+    });
+  }
   private candidates(snapshot: Snapshot): Caster[] {
     return snapshot.participants.filter(p => !p.playerOwned && p.linked).flatMap(p => {
       const items = fireBolts(p);
@@ -128,9 +155,9 @@ export class FireBoltDiscovery {
     });
   }
   async detect(): Promise<DiscoveryView> {
-    ensure(!this.busy, "TEST_BUSY"); this.busy = true; this.latest = null;
+    ensure(!this.busy, "TEST_BUSY"); this.busy = true; this.latest = null; this.lastCasterDiagnostics=[];
     try {
-      const snapshot = await this.capture(); const candidates = this.candidates(snapshot);
+      const snapshot = await this.capture(); this.lastCasterDiagnostics=[...this.captureExclusions,...this.buildCasterDiagnostics(snapshot)]; const candidates = this.candidates(snapshot);
       const current = candidates.find(p => p.combatantId === snapshot.combat.current?.id);
       const offered = current ? [current] : candidates;
       ensure(offered.length > 0, "CASTER_NOT_FOUND");
@@ -180,7 +207,7 @@ export class FireBoltDiscovery {
     const doc=parse(documentSchema,await this.reader.read("resolve-uuid",{uuid:itemUuid}));
     const owned=parse(z.object({_id:id,type:z.literal("spell"),name:z.string(),system:z.record(z.string(),z.unknown())}),doc.data);
     ensure(doc.uuid===itemUuid && doc.documentName==="Item" && doc.parentUuid===`Actor.${freshCaster.actor.id}` && doc.id===freshCaster.item.id && owned._id===doc.id &&
-      owned.name.trim().toLowerCase()==="fire bolt" && suitableItem({...freshCaster.item,system:owned.system}),"ITEM_NOT_OWNED_OR_UNSUPPORTED");
+      isFireBoltName(owned.name) && suitableItem({...freshCaster.item,system:owned.system}),"ITEM_NOT_OWNED_OR_UNSUPPORTED");
     actorResources(freshCaster.actor); actorResources(freshTarget.actor);
     const end=await this.capture();
     ensure(end.scopeKey===fresh.scopeKey && end.identityKey===fresh.identityKey,"SCOPE_STALE");
