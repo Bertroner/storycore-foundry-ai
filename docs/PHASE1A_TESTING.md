@@ -19,7 +19,7 @@ The app has one window and one trusted backend. Only the Bridge WebSocket listen
 
 ## Settings and connection test
 
-1. In the desktop window, paste the OpenRouter key into its masked password field. Never paste it into chat, Foundry settings, source or a shell command.
+1. Expand **Connection settings (keys and model)** if needed. In the desktop window, paste the OpenRouter key into its masked password field. Never paste it into chat, Foundry settings, source or a shell command.
 2. Keep or edit the model ID. Default: qwen/qwen3-30b-a3b-instruct-2507; temperature 0.25; max output 700 tokens.
 3. Enter a separate local Bridge key, at least 16 characters. You may preserve the already saved Bridge key by leaving its field blank. This is not the OpenRouter key.
 4. Click **Save settings**. Main validates/encrypts/stores newly typed keys; the submitted fields clear only after success, confirmed by SETTINGS_SAVED and a Saved on this PC label beside each stored key. On failure, unsaved typed values remain for correction; a short Bridge key gets a specific explanation. Edits made while saving are not cleared. Blank fields preserve existing values. The UI exposes only hasOpenRouterKey/hasBridgeKey, never stored plaintext or encrypted blobs. Status refresh never fills or overwrites a typed key.
@@ -39,7 +39,7 @@ npm run package
 .\release\StoryCoreFoundryAI-win32-x64\StoryCoreFoundryAI.exe
 ~~~
 
-The offline desktop smoke test uses fake credentials in a temporary directory and an ephemeral port; it does not load your real settings, call OpenRouter or contact Foundry. It validates the real Electron renderer/preload/main boundary and saves a non-secret screenshot in tmp/desktop-smoke.png.
+The offline desktop smoke test uses fake credentials in a temporary directory and an ephemeral port; it does not load your real settings, call OpenRouter or contact live Foundry. A local fake Bridge responds through the real WebSocket transport, and a test-only model exercises Detect/deselect/attest/Run with zero writes. It validates the real Electron renderer/preload/main boundary and saves a non-secret screenshot in tmp/desktop-smoke.png.
 
 The portable package starts directly without Node/npm installed on the destination machine. Keep the entire StoryCoreFoundryAI-win32-x64 folder together; do not copy only the .exe. It is a local unsigned development package, not an installer, and has no auto-update. Windows may show an unsigned-app warning. The package is under gitignored release/ and is not pushed to git. Packaging stages only compiled runtime/UI plus production dependencies; no donors, tests or live settings are included. Existing per-user DPAPI settings are still used by the packaged app.
 
@@ -63,25 +63,19 @@ These are the setting labels/keys of the pinned, audited Bridge. If your install
 
 No module code is changed. The runtime sends only: get-world-info, get-combat-state, get-scene-tokens, get-token, get-actor, get-actor-effects, get-combat-turn-context, get-scene. get-scene is needed for grid/door checks and is always called with includeScreenshot:false. The installed handler also generates an ASCII map, but it is discarded from model/UI data.
 
-## Prepare one supported scene and run
+## Detect one supported turn and run
 
-1. Manually prepare one active combat with the desired NPC's turn current. The GM client must view that combat's scene. Use a linked NPC Actor, a unique token, grid-aligned 1x1 participants on a square grid in feet, elevation zero, normal walking, no difficult terrain and no doors.
-2. Enter Scene ID, Combat ID, current NPC Actor ID and Token ID in the desktop window. Use Foundry's copy-document-ID controls. If an ID is not shown, these optional GM console expressions only READ IDs:
+1. In Foundry, open and activate the intended combat scene, start combat and make the NPC current. Phase 1A supports one active combat, linked Actors, unique grid-aligned 1x1 tokens on a square grid in feet, elevation zero, normal walking, no difficult terrain and no doors. The GM must view that active scene.
+2. In StoryCore Foundry AI, click **Detect current Foundry turn**. The read-only panel shows scene name, combat round/turn, current NPC, HP, token name and detected combat participants. No console, F12, document-ID copying or comma-separated ID entry is needed. **Refresh** repeats detection and replaces the previous detected scope.
+3. Inspect the detected target checkboxes. Only active-combat participants with matching scene/context identity, supported geometry, no hidden/secret flag and no explicit LOS obstruction are eligible. Missing-context, blocked, hidden/secret and duplicate participants are excluded. Uncheck any candidate the NPC does not actually perceive. Zero selected targets is permitted. Arbitrary GM-visible scene tokens are never offered. Foundry disposition is displayed as reported, not reinterpreted as a tactic or inferred allegiance to the NPC.
+4. Confirm the single checkbox: selected targets are perceived by this NPC; this is the intended linked-Actor scene with one active combat and normal walking. The Bridge cannot prove actorLink, full NPC perception or all terrain facts. Detect never claims those were verified automatically. Confirmation resets after detection/refresh, selection changes and each run.
+5. The **Development NPC mind fixture** is prefilled with a cautious personality, survival/defence motivation and empty memory. Editing is optional. Main generates only factual `Hostile combatant` relationships for selected hostile combatants. No hidden/unselected participants or tactical if/else instructions are inserted. This is not the connected StoryCore memory provider.
+6. Click **Run one real LLM dry-run**. Main accepts the latest detection ID plus the selected offered candidate handles and attestation; it derives scene/combat/Actor/token IDs and both internal ID lists itself. Renderer-supplied scope/Actor IDs are rejected. Before Qwen, the adapter checks the active scene and performs the existing fresh-read combat bracket again. Changed combat, round/turn, current identity or disappeared/invalid selected target rejects as **DETECTED_SCOPE_STALE**. Detect/Refresh and reconfirm; it never silently switches NPC or target.
+7. Inspect the compact state, narrative, sanitized model/token/byte/latency metadata, model output and validation. Output remains a dry-run and does not execute. Exact document IDs are available only in collapsed **Advanced diagnostics**, as read-only debugging information.
 
-~~~javascript
-game.scenes.active?.id
-game.combat?.id
-game.combat?.combatant?.actorId
-game.combat?.combatant?.tokenId
-~~~
+Detection uses the pinned Bridge v8.11.2 contract: `src/commands/types.ts::GetSceneParams` has optional sceneId, and `src/commands/handlers/scene/sceneTypes.ts::getScene` resolves `game.scenes.active` when omitted. The first read is get-combat-state with empty parameters. The active-scene read is get-scene with includeScreenshot:false and no sceneId; subsequent dependent reads use the discovered IDs. The current combat token and context positions must match that scene. Active scene and viewed canvas are not interchangeable native proofs: the existing GM-view attestation remains required.
 
-Do not run mutation scripts. Copy target IDs from their Actor/token documents. Do not paste full Actor dumps into the UI or model.
-
-3. Enter verified linked Actor IDs (NPC plus the targets), and only token IDs the NPC actually perceives. Empty perceived-token list means no target is offered. GM visibility alone is insufficient. Hidden/secret tokens are rejected even if listed.
-4. Tick the per-run scope attestation only after verifying it. It covers facts absent from current Bridge reads, not new native capabilities. The checkbox clears for each run.
-5. Edit the small development-only personality/motivation and optional relationships/memory JSON. Relationships use known Actor IDs, e.g. [{"actorId":"YOUR_TARGET_ACTOR_ID","summary":"Hostile intruder"}]. Memory is an array of plain strings. No key, hidden information, scripts or tactical if/else rules belong here.
-6. Click **Run one real LLM dry-run** once in the desktop window. A fresh combat bracket and dependent reads produce the DTO; real OpenRouter decides. Every accepted response is checked against another fresh read.
-7. Inspect state, narrative, sanitized model/format/temperature/token/byte/latency metadata, model output and validation. These appear in pretty JSON. The output does not execute.
+Detection is on demand only, performs no model call or writes, and invalidates its previous result if refresh fails. Selected targets are bound to main's latest detection; reconnects invalidate the session identity. Schema failures retain safe boundary labels such as BRIDGE_DATA_INVALID:get-combat-state:current. The window gives a readable instruction alongside the code. If Bridge cannot read an active combat, start combat and make an NPC current before detecting again.
 
 Expected terminal results:
 
@@ -93,9 +87,9 @@ One click is one decision, at most two plan attempts, two repair continuations, 
 
 ## Live acceptance matrix — perform manually
 
-After the first supported run, manually move the target close, farther away, then change LOS if practical. Reverify the per-run attestation/known targets, then click once for each fresh decision. Do not let this adapter move a token.
+After the first supported run, manually move the target close, farther away, then change LOS if practical. Click Detect/Refresh after each manual change, inspect selected targets and reconfirm the attestation before each fresh decision. Do not let this adapter move a token.
 
-Record for each run: time, decisionId, runtime versions, selected model, state snapshot/bytes, PLAN_REQUEST/FINAL_INTENT, validator status, latency and zero writes. Different intentions are observations of the real model, not pass criteria forced by code. If a target is no longer perceived, remove it from the list; do not leak its current position to the model. A wall test with an actually known/perceived target may show a blocking wall and a safely rejected attack.
+Record for each run: time, decisionId, runtime versions, selected model, state snapshot/bytes, PLAN_REQUEST/FINAL_INTENT, validator status, latency and zero writes. Different intentions are observations of the real model, not pass criteria forced by code. If a target is no longer perceived, uncheck it in the detected list; do not leak its current position to the model. A wall test with an actually known/perceived target may show a blocking wall and a safely rejected attack.
 
 ## Evidence recorded on 2026-08-31
 
@@ -104,9 +98,9 @@ Record for each run: time, decisionId, runtime versions, selected model, state s
 | Old local UI | Stopped before rework; port 3210 was confirmed no longer listening. It is not restarted as an HTTP UI. |
 | npm ci | Fresh project-local install succeeded; npm audit reported zero vulnerabilities at this check. |
 | npm run dev | Opened the visible desktop window directly; no external browser. |
-| npm run check | Typecheck and build passed; 48/48 tests passed, including all original 32 regression cases. The retired HTTP-page case now asserts 404/no UI/settings exposure. |
+| npm run check | Typecheck and build passed; 58/58 tests passed, including all original 32 regression cases. The retired HTTP-page case now asserts 404/no UI/settings exposure. |
 | New desktop unit tests | Exact IPC sender/frame/URL, fixed method allowlist, secret-free status/results/errors/logs, blank-preserve, explicit-clear, trusted OpenRouter invocation and no Bridge writes passed. |
-| npm run test:desktop | Real Electron 44.0.0 window/preload/main test passed using fake credentials. OS sandbox enabled, renderer Node absent, network denied, fields empty for saved keys, DPAPI clear passed; failed Save retained typed values, successful Save cleared fields with confirmation, and disk reload preserved the saved replacement; zero Bridge reads/writes. Screenshot inspected. |
+| npm run test:desktop | Real Electron 44.0.0 window/preload/main test passed using fake credentials. OS sandbox enabled, renderer Node absent, network denied, fields empty for saved keys, DPAPI clear passed; failed Save retained typed values, successful Save cleared fields with confirmation, and disk reload preserved the saved replacement; zero Bridge writes. Offline Detect/deselect/attest/Run through real IPC and a local fixture Bridge also passed; the test-only model received no deselected target. Screenshot inspected. |
 | npm run package | Portable Windows x64 build succeeded; archive excludes donors, tests and settings. |
 | Packaged startup | Visible StoryCore Foundry AI - Phase 1A window appeared; /health returned status=ok and execution=DISABLED. No combat/model action triggered by this startup check. |
 | Real authenticated OpenRouter / live Foundry acceptance | No new authenticated model or combat decision acceptance was performed in this UI rework. Earlier live end-to-end acceptance remains unverified. |
@@ -129,13 +123,15 @@ npm run check passed 48/48 tests, including all previous 41 and seven added cont
 
 ## Exact limits and safe failures
 
-- Current Bridge does not expose actorLink, combat.scene validation, full NPC perception, module versions or action economy in these responses. Linking/viewed scene/single-active-combat/normal-walking claims require explicit operator attestation each run; native linking stays null when absent, scopeVerified=false, automaticExecution=false.
+- Current Bridge does not expose actorLink, combat.scene validation, full NPC perception, module versions or action economy in these responses. Active combat/scene IDs are discovered, but linking/viewed scene/single-active-combat/normal-walking claims still require explicit operator attestation each run; native linking stays null when absent, scopeVerified=false, automaticExecution=false.
 - Distance is the Bridge's grid approximation. Its true LOS can be a missing-backend fallback, so Phase 1A emits wallLos=null for true, false for a reported obstruction. No new LOS/path engine is added.
 - quality.completeForDecision=false describes incomplete full native legality. Only this supervised read-only checkpoint permits the qualified subset to be discussed by the LLM. It is never executable approval. Oversized supported catalogues fail instead of tactically pruning.
 - Only legacy mwak/rwak weapon metadata with one action and no activities is offered. Explicit non-single targets, spells, AoE, saves, bonus/reaction activation and item consumption dependencies are omitted with an aggregate count. Legacy empty target metadata stays null rather than fabricating a numeric target count. Normal/long range, uses and movement capacity remain null when absent. Ammunition/resource-linked weapons may therefore be omitted pending a later native legality boundary.
 - Unsupported synthetic/unlinked or duplicate instances, non-NPC current Actors, non-1x1/grid-aligned/elevated tokens, non-square/non-ft grids and doors reject the run. Unavailable linking cannot be independently detected by this Bridge; attestation is a testing limitation, not synthetic Actor support.
 - Observations are bracketed reads and a local SHA-256 fingerprint, not an atomic snapshot or Foundry revision. A change-and-revert between reads is not detectable. Any observed relevant change closes the decision.
 - Raw Bridge payload cap 2 MiB; state cap 24 KiB; DecisionRequest cap 32 KiB; model output cap 8 KiB/depth 32. Unsupported/overflow data never becomes raw LLM context.
+- Auto-detection UX verification: npm run check passed 58/58 tests, retaining all prior 48 cases and adding ten discovery/scope/IPC regressions. The desktop smoke exercises actual UI clicks without editable IDs and verifies deselection and automatic confirmation reset. These fixture-only checks are not live LLM acceptance.
+
 - No pathfinder, IntentExecutor, item activation, targeting write, next-turn, Midi modification, memory write, donor modification, Combat Mappers work or Foundry upgrade.
 
 ## Logs and stopping

@@ -10,7 +10,6 @@ import { BridgeSession } from "../src/bridge-session.js";
 import { DesktopService } from "../src/desktop-service.js";
 import { createIpcHandlers, IPC_CHANNELS, UI_URL, type IpcSender } from "../desktop/ipc.js";
 import { OpenRouterDecisionProvider } from "../src/openrouter-provider.js";
-import type { ScopeFixture } from "../src/combat-sensor.js";
 import type { DesktopApi } from "../desktop/api.js";
 import { fixture, mind } from "./fixtures.js";
 const key = "desktop-test-secret-not-live", bridgeKey = "desktop-bridge-secret-not-live";
@@ -79,11 +78,12 @@ test("preload exposes only named typed methods and sends each on its fixed chann
       ipcRenderer: { invoke(...args: unknown[]) { calls.push(args); return Promise.resolve({ ok: true, data: {} }); } } };
   } });
   assert.ok(exposed); const api = exposed as DesktopApi;
-  assert.deepEqual(Object.keys(api).sort(), ["cancelDecision", "clearBridgeKey", "clearOpenRouterKey", "runDecision", "saveSettings", "status", "testOpenRouter"].sort());
+  assert.deepEqual(Object.keys(api).sort(), ["cancelDecision", "clearBridgeKey", "clearOpenRouterKey", "detectTurn", "runDecision", "saveSettings", "status", "testOpenRouter"].sort());
   assert.equal(Object.hasOwn(api, "invoke"), false); assert.equal(Object.hasOwn(api, "credentials"), false);
   await api.status(); await api.saveSettings(input as Parameters<DesktopApi["saveSettings"]>[0]);
-  await api.clearOpenRouterKey(); await api.clearBridgeKey(); await api.testOpenRouter();
-  await api.runDecision({ requestId: crypto.randomUUID(), fixture: fixture as ScopeFixture, mind }); await api.cancelDecision();
+  await api.clearOpenRouterKey(); await api.clearBridgeKey(); await api.testOpenRouter(); await api.detectTurn();
+  await api.runDecision({ requestId: crypto.randomUUID(), detectionId: crypto.randomUUID(), selectedCandidateIds: [], attested: true,
+    mind: { personality: mind.personality, motivation: mind.motivation, relevantMemory: [] } }); await api.cancelDecision();
   assert.deepEqual(calls.map(call => call[0]), [...IPC_CHANNELS]);
 });
 test("Test OpenRouter IPC calls existing provider in trusted runtime; renderer gets only safe outcome", async t => {
@@ -113,7 +113,7 @@ test("provider error text, newly submitted invalid keys and stored blobs never a
 });
 test("dry-run IPC result, status and summary log do not serialize credentials", async t => {
   const { handlers, logs, bridge } = await setup(t);
-  const result = await handlers["storycore:run-decision"](sender, { requestId: crypto.randomUUID(), fixture, mind });
+  const result = await handlers["storycore:detect-turn"](sender);
   const all = JSON.stringify([result, await handlers["storycore:status"](sender), logs]);
   assert.ok(all.includes("BRIDGE_DISCONNECTED"));
   for (const value of [key, bridgeKey, "Authorization", "encryptedApiKey", Buffer.from(key).toString("base64")]) assert.ok(!all.includes(value));

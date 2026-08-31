@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { z } from "zod";
 import type { BridgeSession } from "./bridge-session.js";
+import { TurnDetector, detectedRunSchema } from "./turn-detector.js";
 import { CombatSensor } from "./combat-sensor.js";
 import { DecisionRunner } from "./decision-runner.js";
 import { OpenRouterDecisionProvider } from "./openrouter-provider.js";
@@ -23,8 +23,10 @@ export class DesktopService {
   private runs = new Map<string, { hash: string; result: DryRunResult }>();
   private provider: TrustedProvider;
   private runner: DecisionRunner;
+  private detector: TurnDetector;
   constructor(private settings: SettingsStore, private bridge: BridgeSession,
     provider?: TrustedProvider, private log: (text: string) => void = text => console.log(text)) {
+    this.detector = new TurnDetector(bridge);
     this.provider = provider ?? new OpenRouterDecisionProvider(() => settings.credentials());
     this.runner = new DecisionRunner(new CombatSensor(bridge), this.provider, () => this.secrets());
   }
@@ -62,17 +64,19 @@ export class DesktopService {
         error: this.controller.signal.aborted ? "CANCELLED" : safeError(error) }; }
     });
   }
+  detectTurn() { return this.exclusive(() => this.detector.detect()); }
   runDecision(input: unknown) {
     return this.exclusive(async () => {
-      const parsed = z.object({ requestId: z.string().uuid(), fixture: z.unknown(), mind: z.unknown() }).strict().safeParse(input);
+      const parsed = detectedRunSchema.safeParse(input);
       ensure(parsed.success, "REQUEST_INVALID");
       ensure(Buffer.byteLength(JSON.stringify(parsed.data)) <= 16384, "HTTP_BODY_TOO_LARGE");
       const data = parsed.data; const hash = createHash("sha256").update(JSON.stringify(data)).digest("hex");
       const previous = this.runs.get(data.requestId);
       if (previous) { ensure(previous.hash === hash, "REPLAY_BODY_CHANGED"); return previous.result; }
       ensure(this.runs.size < 100, "SESSION_RUN_LIMIT"); ensure(this.settings.publicView().hasKey, "MODEL_KEY_REQUIRED");
+      const prepared = this.detector.prepare(data);
       this.controller = new AbortController();
-      const result = await this.runner.run(data.fixture, data.mind, this.controller.signal);
+      const result = await this.runner.run(prepared.fixture, prepared.mind, this.controller.signal, prepared.capture);
       this.latest = this.clean(result); this.runs.set(data.requestId, { hash, result: this.latest });
       await mkdir(join(this.settings.directory, "decisions"), { recursive: true });
       await writeFile(join(this.settings.directory, "decisions", result.decisionId + ".json"), JSON.stringify(this.latest, null, 2), { mode: 0o600 });

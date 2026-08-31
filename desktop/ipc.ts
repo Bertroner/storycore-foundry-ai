@@ -3,7 +3,7 @@ import { ensure, safeError } from "../src/safety.js";
 export const UI_URL = "storycore-app://ui/index.html";
 export const IPC_CHANNELS = Object.freeze([
   "storycore:status", "storycore:save-settings", "storycore:clear-openrouter-key", "storycore:clear-bridge-key",
-  "storycore:test-openrouter", "storycore:run-decision", "storycore:cancel-decision",
+  "storycore:test-openrouter", "storycore:detect-turn", "storycore:run-decision", "storycore:cancel-decision",
 ] as const);
 export type IpcSender = { sender: { id: number }; senderFrame: { url: string; parent: unknown } | null };
 // Explicit dispatch table, not a bridge-command or arbitrary IPC passthrough.
@@ -24,6 +24,7 @@ export function createIpcHandlers(service: DesktopService, trustedSender: (event
     "storycore:clear-openrouter-key": wrap(() => service.clearOpenRouterKey()),
     "storycore:clear-bridge-key": wrap(() => service.clearBridgeKey()),
     "storycore:test-openrouter": wrap(() => service.testOpenRouter()),
+    "storycore:detect-turn": wrap(() => service.detectTurn()),
     "storycore:run-decision": wrap(input => service.runDecision(input), true),
     "storycore:cancel-decision": wrap(() => service.cancel()),
   });

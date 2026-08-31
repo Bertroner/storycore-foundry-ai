@@ -4,8 +4,9 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <title>StoryCore Foundry AI - Phase 1A</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<header><h1>StoryCore Foundry AI <span>Phase 1A</span></h1><p>READ → NORMALIZE → REAL LLM → VALIDATE <strong>Execution DISABLED</strong></p></header>
+<header><h1>StoryCore Foundry AI <span>Phase 1A / Turn detection</span></h1><p>READ → NORMALIZE → REAL LLM → VALIDATE <strong>Execution DISABLED</strong></p></header>
 <section aria-label="Connection"><h2>Connection</h2><p id="status" role="status">Connecting to desktop runtime...</p></section>
+<details class="settings-panel"><summary>Connection settings (keys and model)</summary>
 <div class="columns">
 <section><h2>OpenRouter</h2>
 <label>Provider<input value="OpenRouter" disabled></label>
@@ -30,23 +31,30 @@
 <button id="save" type="button">Save settings</button>
 <pre id="settingsResult" aria-live="polite">Key fields clear only after successful saving. On failure, typed values stay for correction. Blank fields preserve saved values.</pre>
 </section>
-<section><h2>Phase 1A dry-run</h2>
-<div class="columns fields">
-<label>Scene ID<input id="sceneId" autocomplete="off"></label><label>Combat ID<input id="combatId" autocomplete="off"></label>
-<label>Current NPC Actor ID<input id="actorId" autocomplete="off"></label><label>Current NPC Token ID<input id="tokenId" autocomplete="off"></label>
-<label>Verified linked Actor IDs<input id="linkedActorIds" autocomplete="off" placeholder="Self + known targets, comma-separated"></label>
-<label>Perceived Token IDs<input id="perceivedTokenIds" autocomplete="off" placeholder="Only tokens the NPC perceives; comma-separated"></label>
+</details>
+<section><h2>Foundry current turn</h2>
+<button id="detect" type="button">Detect current Foundry turn</button><button id="refreshTurn" type="button" class="secondary">Refresh</button>
+<pre id="turnStatus" role="status">Open the intended active scene in Foundry, start combat and make the NPC current. Then click Detect.</pre>
+<div id="turnSummary" hidden>
+<dl class="turn-facts"><dt>Scene</dt><dd id="sceneName"></dd><dt>Combat</dt><dd id="combatName"></dd>
+<dt>Current NPC</dt><dd id="npcName"></dd><dt>HP</dt><dd id="npcHp"></dd><dt>Token</dt><dd id="tokenName"></dd></dl>
+<h3>Detected combatants</h3><div id="targets"></div>
+<p class="hint">Only current combat participants are considered. Reported LOS does not prove NPC perception. Excluded participants never enter the model context.</p>
+<details><summary>Advanced diagnostics (read-only IDs)</summary><pre id="turnDiagnostics"></pre></details>
 </div>
-<label class="attestation"><input type="checkbox" id="attest"> I verified this run: one active combat, GM viewing its scene, listed Actors linked, normal walking with no difficult terrain. Perceived tokens are NPC knowledge, not everything the GM sees.</label>
-<p class="hint">Current Bridge cannot verify every scope fact. Unsupported geometry, doors, duplicate or hidden tokens still reject the run. Attestation resets after each run.</p>
+<label class="attestation"><input type="checkbox" id="attest" disabled> I confirm the selected targets are actually perceived by this NPC and this is the intended linked-Actor test scene: one active combat, GM viewing its active scene, normal walking with no difficult terrain.</label>
+<p class="hint">Actor linking and perception are not automatically proven. Confirmation resets after Detect, Refresh, target changes and every run.</p>
+</section>
+<section><h2>Development NPC mind fixture</h2>
+<p class="hint">Will be replaced by StoryCore memory/personality integration. Defaults are sufficient for this test; edit only if desired.</p>
 <div class="columns fields">
-<label>Development-only personality<textarea id="personality" rows="2">Cautious; values survival and protects companions.</textarea></label>
-<label>Development-only motivation<textarea id="motivation" rows="2">Defend the entrance while trying to survive.</textarea></label>
-<label>Relationships JSON<textarea id="relationships" rows="2">[]</textarea></label>
+<label>Personality<textarea id="personality" rows="2">Cautious creature that values survival.</textarea></label>
+<label>Motivation<textarea id="motivation" rows="2">Defend its position and survive.</textarea></label>
 <label>Relevant memory JSON<textarea id="memory" rows="2">[]</textarea></label>
+<div><p class="hint">Relationships generated from selected hostile combatants</p><pre id="relationships">No selected hostile combatants.</pre></div>
 </div>
-<p class="hint">This fixture is not the connected StoryCore memory database. No secrets, hidden facts or tactical if/else code.</p>
-<button id="run" type="button">Run one real LLM dry-run</button><button id="cancel" type="button" class="secondary">Cancel</button>
+<button id="run" type="button" disabled>Run one real LLM dry-run</button><button id="cancel" type="button" class="secondary">Cancel</button>
+<p class="hint">Rechecks the detected scope before the model call. Execution DISABLED.</p>
 </section>
 <section><h2>Result</h2><pre id="result" aria-live="polite">No decision run yet.</pre></section>
 <script type="module" src="renderer.js"></script>

@@ -11,9 +11,11 @@ export const fixtureSchema = z.object({
   attestSingleActiveCombat: z.literal(true), attestViewedCombatScene: z.literal(true),
   attestNormalWalkingNoTerrain: z.literal(true),
 }).strict();
+const probeSchema = fixtureSchema.omit({ attestSingleActiveCombat: true, attestViewedCombatScene: true, attestNormalWalkingNoTerrain: true });
+export type ReadScope = z.infer<typeof probeSchema>;
 export type ScopeFixture = z.infer<typeof fixtureSchema>;
 const combatant = z.object({ id: idSchema, actorId: idSchema, tokenId: idSchema.nullable(), hidden: z.boolean(), defeated: z.boolean() }).passthrough();
-const combatSchema = z.object({ id: idSchema, round: z.number().int().nonnegative(), turn: z.number().int().nonnegative(),
+export const combatSchema = z.object({ id: idSchema, round: z.number().int().nonnegative(), turn: z.number().int().nonnegative(),
   started: z.boolean(), current: combatant.nullable(), combatants: z.array(combatant) }).passthrough();
 // Wire contracts audited against Bridge v8.11.2 tokenTypes.ts (f71ea11).
 export const sceneTokenSummarySchema = z.object({
@@ -38,7 +40,7 @@ export function summaryDisposition(value: SceneTokenSummary["disposition"]): Tok
 }
 const actorSchema = z.object({ id: idSchema, name: z.string(), type: z.string(), system: z.record(z.string(), z.unknown()),
   items: z.array(z.object({ id: idSchema, name: z.string(), type: z.string(), system: z.record(z.string(), z.unknown()) }).passthrough()) }).passthrough();
-const sceneSchema = z.object({ id: idSchema, active: z.boolean(), width: z.number(), height: z.number(),
+export const sceneSchema = z.object({ id: idSchema, name: z.string(), active: z.boolean(), width: z.number(), height: z.number(),
   grid: z.object({ type: z.number(), size: z.number().positive(), distance: z.number().positive(), units: z.string() }),
   walls: z.array(z.object({ door: z.number() }).passthrough()) }).passthrough();
 const contextToken = z.object({ tokenId: idSchema, actorId: idSchema.nullable(), gridX: z.number(), gridY: z.number(),
@@ -49,7 +51,7 @@ const contextSchema = z.object({ round: z.number(), turn: z.number(),
 const effectsSchema = z.object({ actorId: idSchema, activeStatuses: z.array(z.string()),
   effects: z.array(z.record(z.string(), z.unknown())) }).passthrough();
 const worldSchema = z.object({ world: z.object({ id: idSchema, foundryVersion: z.string(), system: z.string(), systemVersion: z.string() }) }).passthrough();
-function parse<T>(schema: z.ZodType<T>, value: unknown, boundary?: ReadCommand): T {
+export function parseBridgeData<T>(schema: z.ZodType<T>, value: unknown, boundary?: ReadCommand): T {
   const result = schema.safeParse(value);
   if (!result.success) {
     // Only a fixed schema field label, never an input value, arbitrary record key or Zod message.
@@ -62,7 +64,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown, boundary?: ReadCommand):
 export type RawSnapshot = { world: z.infer<typeof worldSchema>["world"]; combat: z.infer<typeof combatSchema>;
   scene: z.infer<typeof sceneSchema>; tokens: SceneTokenSummary[]; actor: z.infer<typeof actorSchema>;
   effects: z.infer<typeof effectsSchema>; context: z.infer<typeof contextSchema>;
-  token: TokenDetail; epoch: string; fingerprint: string; observedAt: string; snapshotId: string; fixture: ScopeFixture };
+  token: TokenDetail; epoch: string; fingerprint: string; observedAt: string; snapshotId: string; fixture: ReadScope };
 function fingerprint(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 export function assertUniqueTokens(tokens: { actorId: string | null }[], actorIds: string[]) {
   for (const actorId of actorIds) ensure(tokens.filter(t => t.actorId === actorId).length === 1, "UNSUPPORTED_DUPLICATE_OR_MISSING_TOKEN");
@@ -70,8 +72,13 @@ export function assertUniqueTokens(tokens: { actorId: string | null }[], actorId
 export class CombatSensor {
   constructor(private bridge: BridgeReader) {}
   async capture(input: unknown): Promise<RawSnapshot> {
-    const fixture = parse(fixtureSchema, input); const epoch = this.bridge.epoch;
-    const before = parse(combatSchema, await this.bridge.read("get-combat-state", {}), "get-combat-state");
+    return this.readScope(parseBridgeData(fixtureSchema, input));
+  }
+  // Discovery validates read-only geometry/identity without asserting operator knowledge or invoking the LLM.
+  async probe(input: ReadScope): Promise<RawSnapshot> { return this.readScope(parseBridgeData(probeSchema, input)); }
+  private async readScope(fixture: ReadScope): Promise<RawSnapshot> {
+    const epoch = this.bridge.epoch;
+    const before = parseBridgeData(combatSchema, await this.bridge.read("get-combat-state", {}), "get-combat-state");
     ensure(before.started && before.id === fixture.combatId && before.current?.actorId === fixture.actorId &&
       before.current.tokenId === fixture.tokenId && !before.current.hidden && !before.current.defeated, "UNSUPPORTED_CURRENT_COMBAT");
     const [worldData, sceneData, tokensData, actorData, effectsData, contextData, tokenData] = await Promise.all([
@@ -81,13 +88,13 @@ export class CombatSensor {
       this.bridge.read("get-combat-turn-context", { combatId: fixture.combatId }),
       this.bridge.read("get-token", { sceneId: fixture.sceneId, tokenId: fixture.tokenId }),
     ]);
-    const after = parse(combatSchema, await this.bridge.read("get-combat-state", {}), "get-combat-state");
+    const after = parseBridgeData(combatSchema, await this.bridge.read("get-combat-state", {}), "get-combat-state");
     ensure(epoch === this.bridge.epoch && fingerprint(before) === fingerprint(after), "STALE_SNAPSHOT");
-    const world = parse(worldSchema, worldData, "get-world-info").world; const scene = parse(sceneSchema, sceneData, "get-scene");
-    const tokenList = parse(z.object({ sceneId: idSchema, tokens: z.array(sceneTokenSummarySchema) }).passthrough(), tokensData, "get-scene-tokens");
-    const actor = parse(actorSchema, actorData, "get-actor"); const effects = parse(effectsSchema, effectsData, "get-actor-effects");
-    const context = parse(contextSchema, contextData, "get-combat-turn-context");
-    const token = parse(tokenDetailSchema, tokenData, "get-token");
+    const world = parseBridgeData(worldSchema, worldData, "get-world-info").world; const scene = parseBridgeData(sceneSchema, sceneData, "get-scene");
+    const tokenList = parseBridgeData(z.object({ sceneId: idSchema, tokens: z.array(sceneTokenSummarySchema) }).passthrough(), tokensData, "get-scene-tokens");
+    const actor = parseBridgeData(actorSchema, actorData, "get-actor"); const effects = parseBridgeData(effectsSchema, effectsData, "get-actor-effects");
+    const context = parseBridgeData(contextSchema, contextData, "get-combat-turn-context");
+    const token = parseBridgeData(tokenDetailSchema, tokenData, "get-token");
     ensure(world.foundryVersion === "12.343" && world.system === "dnd5e" && world.systemVersion === "3.3.1", "UNSUPPORTED_RUNTIME");
     ensure(scene.id === fixture.sceneId && scene.active && tokenList.sceneId === fixture.sceneId &&
       token.sceneId === fixture.sceneId, "SCENE_MISMATCH");
@@ -121,7 +128,7 @@ export class CombatSensor {
     return { ...data, fingerprint: fingerprint(data), observedAt: new Date().toISOString(), snapshotId: randomUUID() };
   }
   async assertFresh(snapshot: RawSnapshot) {
-    const fresh = await this.capture(snapshot.fixture);
+    const fresh = await this.readScope(snapshot.fixture);
     ensure(fresh.fingerprint === snapshot.fingerprint && fresh.epoch === snapshot.epoch, "STALE_SNAPSHOT");
   }
 }

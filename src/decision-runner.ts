@@ -1,20 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { CombatNormalizer } from "./combat-normalizer.js";
-import type { CombatSensor } from "./combat-sensor.js";
+import type { CombatSensor, RawSnapshot } from "./combat-sensor.js";
 import { DevFixtureMindProvider, parseDecision, validateDecision, type DecisionRequestV1 } from "./contracts.js";
 import { ProviderFailure, type LlmDecisionGateway } from "./llm-gateway.js";
 import { ensure, ensureNoSecrets, safeError, strictJson } from "./safety.js";
 export class DecisionRunner {
   private busy = false;
   constructor(private sensor: CombatSensor, private gateway: LlmDecisionGateway, private secrets: () => string[]) {}
-  async run(fixture: unknown, mindFixture: unknown, signal: AbortSignal) {
+  async run(fixture: unknown, mindFixture: unknown, signal: AbortSignal, captureDetected?: () => Promise<RawSnapshot>) {
     ensure(!this.busy, "DECISION_BUSY"); this.busy = true;
     const events: Record<string, unknown>[] = [];
     let state: ReturnType<CombatNormalizer["normalize"]> | null = null;
     let narrative: Awaited<ReturnType<DevFixtureMindProvider["getMind"]>> | null = null;
     let accepted = false; let status = "PAUSED"; const decisionId = randomUUID();
     try {
-      const raw = await this.sensor.capture(fixture);
+      // Desktop supplies a trusted detected-scope guard; standalone tests still use the same sensor.
+      const raw = await (captureDetected ? captureDetected() : this.sensor.capture(fixture));
       state = new CombatNormalizer().normalize(raw);
       narrative = await new DevFixtureMindProvider(mindFixture).getMind(state.self.actorId);
       // Perceived and self IDs are the only relationship identities accepted in the model DTO.

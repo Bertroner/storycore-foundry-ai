@@ -7,6 +7,7 @@ const api: DesktopApi = Object.freeze({
   clearOpenRouterKey: () => ipcRenderer.invoke("storycore:clear-openrouter-key"),
   clearBridgeKey: () => ipcRenderer.invoke("storycore:clear-bridge-key"),
   testOpenRouter: () => ipcRenderer.invoke("storycore:test-openrouter"),
+  detectTurn: () => ipcRenderer.invoke("storycore:detect-turn"),
   runDecision: (input: RunDecisionInput) => ipcRenderer.invoke("storycore:run-decision", input),
   cancelDecision: () => ipcRenderer.invoke("storycore:cancel-decision"),
 });

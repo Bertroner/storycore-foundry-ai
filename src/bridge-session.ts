@@ -12,7 +12,7 @@ const readParams = {
   "get-actor": z.object({ actorId: id }).strict(),
   "get-actor-effects": z.object({ actorId: id, includeDisabled: z.boolean().optional() }).strict(),
   "get-combat-turn-context": z.object({ combatId: id }).strict(),
-  "get-scene": z.object({ sceneId: id, includeScreenshot: z.literal(false) }).strict(),
+  "get-scene": z.object({ sceneId: id.optional(), includeScreenshot: z.literal(false) }).strict(),
 } as const;
 export const READ_COMMANDS = Object.freeze(Object.keys(readParams));
 export type ReadCommand = keyof typeof readParams;
