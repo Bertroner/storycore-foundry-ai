@@ -1,0 +1,18 @@
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+*.log
+*.zip
+
+# External donor/source checkouts are reference-only and must never be committed.
+_references/*
+!_references/.gitkeep
+
+# Local Foundry/runtime material
+_foundry-runtime/
+_reference_source/
+tmp/
+out/
