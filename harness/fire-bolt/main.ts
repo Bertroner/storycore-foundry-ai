@@ -21,7 +21,11 @@ else {
   try {
     const settings=new SettingsStore(localDirectory());await settings.load();
     const bridge=new FireBoltReadBridge();const runtime=await createApp(settings,3210,bridge);close=()=>runtime.close();
-    const service=new FireBoltService(bridge);
+    const service=new FireBoltService(bridge,{
+      hasBridgeKey:()=>settings.publicView().hasBridgeKey,
+      saveBridgeKey:async bridgeKey=>{const current=settings.publicView();await settings.save({provider:"openrouter",
+        model:current.model,temperature:current.temperature,bridgeKey});},
+    });
     // Safe, compact outcome only; no raw documents, settings, credentials or workflow payloads.
     const detect=service.detect.bind(service);
     service.detect=async()=>{try{const view=await detect();console.log(redact(JSON.stringify({status:view.status,scene:view.scene,

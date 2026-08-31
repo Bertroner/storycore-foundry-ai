@@ -2,6 +2,9 @@
 <html lang="en"><head><meta charset="utf-8"><title>Fire Bolt discovery</title><link rel="stylesheet" href="style.css"></head>
 <body><main><p class="tag">ISOLATED TEST • READ ONLY</p><h1>Fire Bolt test setup</h1>
 <p>Foundry supplies identities and player ownership. This screen does not choose combat tactics.</p>
+<section class="bridge"><p>Bridge: <strong id="bridgeStatus">WAITING_FOR_FOUNDRY_BRIDGE</strong></p>
+<label for="bridgeKey">Bridge key</label><div class="key-row"><input id="bridgeKey" type="password" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Enter the same key configured in Foundry API Bridge"><button id="saveBridgeKey">Save Bridge key</button></div>
+<p id="bridgeMessage" class="note">The key is encrypted locally with Windows DPAPI. Foundry API Bridge connects to this listener automatically.</p></section>
 <dl><dt>Scene</dt><dd id="scene">—</dd><dt>Combat</dt><dd id="combat">—</dd><dt>Current combatant</dt><dd id="current">—</dd></dl>
 <label for="caster">Caster — no player owner</label><select id="caster" disabled></select>
 <p class="spell">Spell: <strong>Fire Bolt</strong> · real Actor-owned cantrip</p>

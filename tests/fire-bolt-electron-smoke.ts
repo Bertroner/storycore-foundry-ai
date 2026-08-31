@@ -13,7 +13,8 @@ const directory=await mkdtemp(join(tmpdir(),"storycore-fire-bolt-smoke-"));app.s
 const timer=setTimeout(()=>{console.error("FIRE_BOLT_UI_TIMEOUT");app.exit(1);},30000);
 try {
   await app.whenReady();console.log("FIRE_BOLT_UI_APP_READY");const reader=new FireBoltFixture();reader.participants.push(participant("alice","Alice",true,false));
-  const window=await createTestWindow(new FireBoltService(reader),resolve("."),false);
+  let savedBridgeKey="";const service=new FireBoltService(reader,{hasBridgeKey:()=>!!savedBridgeKey,saveBridgeKey:async key=>{savedBridgeKey=key;}});
+  const window=await createTestWindow(service,resolve("."),false);
   const metrics=app.getAppMetrics().find(m=>m.pid===window.webContents.getOSProcessId());assert.equal(metrics?.sandboxed,true);
   console.log("FIRE_BOLT_UI_WINDOW_READY");
   const initial=await window.webContents.executeJavaScript(`(async()=>{
@@ -21,12 +22,12 @@ try {
     return {status:document.getElementById("status").textContent,scene:document.getElementById("scene").textContent,
       caster:document.getElementById("caster").selectedOptions[0].textContent,
       targets:Array.from(document.getElementById("target").options,o=>o.textContent),
-      inputs:document.querySelectorAll("input").length,runDisabled:document.getElementById("run").disabled,
+      inputs:Array.from(document.querySelectorAll("input"),input=>input.id),keyType:document.getElementById("bridgeKey").type,keyValue:document.getElementById("bridgeKey").value,runDisabled:document.getElementById("run").disabled,
       methods:Object.keys(window.fireBolt).sort(),node:typeof require,networkBlocked:await fetch("https://example.com").then(()=>false,()=>true)};
   })()`);
   assert.equal(initial.status,"SELECT_TARGET");assert.equal(initial.scene,"Test Arena");assert.equal(initial.caster,"Mage");
-  assert.deepEqual(initial.targets,["Choose a participant","Ethan","Alice"]);assert.equal(initial.inputs,0);
-  assert.equal(initial.runDisabled,true);assert.deepEqual(initial.methods,["choose","detect","status"]);assert.equal(initial.node,"undefined");assert.equal(initial.networkBlocked,true);
+  assert.deepEqual(initial.targets,["Choose a participant","Ethan","Alice"]);assert.deepEqual(initial.inputs,["bridgeKey"]);assert.equal(initial.keyType,"password");assert.equal(initial.keyValue,"");
+  assert.equal(initial.runDisabled,true);assert.deepEqual(initial.methods,["choose","detect","saveBridgeKey","status"]);assert.equal(initial.node,"undefined");assert.equal(initial.networkBlocked,true);
   const selected=await window.webContents.executeJavaScript(`(async()=>{
     const target=document.getElementById("target");target.value=target.options[2].value;target.dispatchEvent(new Event("change"));
     for(let i=0;i<100&&document.getElementById("status").textContent!=="READY_FOR_REVIEW";i++)await new Promise(r=>setTimeout(r,30));
@@ -36,6 +37,12 @@ try {
   })()`);
   assert.equal(selected.status,"READY_FOR_REVIEW");assert.equal(selected.target,"Alice");assert.equal(selected.advanced.targetTokenId,"token-alice");
   assert.equal(selected.advanced.itemId,"owned-mage");assert.equal(selected.advancedOpen,false);assert.equal(selected.runDisabled,true);
+  const keySaved=await window.webContents.executeJavaScript(`(async()=>{const input=document.getElementById("bridgeKey");
+    input.value="offline-ui-bridge-key";document.getElementById("saveBridgeKey").click();
+    for(let i=0;i<100&&!document.getElementById("bridgeMessage").textContent.startsWith("BRIDGE_KEY_SAVED");i++)await new Promise(r=>setTimeout(r,20));
+    return {value:input.value,message:document.getElementById("bridgeMessage").textContent,status:document.getElementById("bridgeStatus").textContent};})()`);
+  assert.equal(savedBridgeKey,"offline-ui-bridge-key");assert.equal(keySaved.value,"");assert.match(keySaved.message,/^BRIDGE_KEY_SAVED/);
+  assert.equal(JSON.stringify(keySaved).includes(savedBridgeKey),false);assert.equal(keySaved.status,"CONNECTED");
   assert.ok(reader.calls.some(c=>c.type==="resolve-uuid"&&c.params.uuid==="Actor.mage.Item.owned-mage"));
   assert.ok(reader.calls.every(c=>!["move-token","next-turn","dnd5e/activate-item"].includes(c.type)));
   console.log("FIRE_BOLT_UI_ASSERTIONS_PASSED");

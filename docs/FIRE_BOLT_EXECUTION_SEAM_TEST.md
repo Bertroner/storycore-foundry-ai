@@ -15,7 +15,7 @@ The current instruction authorizes fixing and checking discovery only. **Do not 
 
 ## Implemented test-only boundary
 
-Run the separate discovery application from the repository with `npm run fire-bolt:discover`. Close the normal StoryCore desktop first because both use the existing loopback Bridge listener on port 3210. Existing locally protected credentials are reused in memory; no key entry, settings rewrite or Foundry configuration change is needed. The normal portable application has not been repackaged or given spell support.
+Run the separate discovery application with `run-fire-bolt-discovery.bat` (double-click in Explorer) or `npm run fire-bolt:discover`. Close the normal StoryCore desktop first because both use the existing loopback Bridge listener on port 3210. Existing locally protected credentials are reused in memory; no key entry, settings rewrite or Foundry configuration change is needed. The normal portable application has not been repackaged or given spell support.
 
 - `harness/fire-bolt/discovery.ts`: active scope, native ownership, unique linked participants, current-caster preference/fallback, owned Fire Bolt eligibility, row selection and fresh revalidation.
 - `harness/fire-bolt/bridge.ts`: isolated READ allowlist, adding only bounded `filter-actors` and `resolve-uuid` requests to the existing reader. There is no live write method.
@@ -23,7 +23,7 @@ Run the separate discovery application from the repository with `npm run fire-bo
 - `harness/fire-bolt/guard.ts`: one-shot policy tested with injected **fake** dispatch/observation ports. It is deliberately not imported by the discovery application and has no live transport binding.
 - `src/bridge-session.ts` and `src/server.ts`: small reuse seams for a test reader and safe failure labels. Production retains exactly its original eight READ commands, authentication, correlation and timeout behavior; its default failure label is unchanged. No production CombatNormalizer, DecisionRunner or intent schema changed.
 
-The review UI exposes only `status`, `detect`, and `choose` IPC methods. **Run one Fire Bolt test is disabled; no activation IPC or HTTP endpoint exists in this build.** Renderer networking, arbitrary RPC, arbitrary UUID resolution, Node integration and untrusted-frame IPC are denied. No OpenRouter/provider client is bound.
+The review UI exposes fixed `status`, `saveBridgeKey`, `detect`, and `choose` IPC methods. Bridge status is displayed separately from execution state. The only editable connection value is a masked Bridge key; it is validated, encrypted with the existing Windows DPAPI settings store, cleared from the field after a successful save, and never returned by IPC. Foundry API Bridge remains the outbound client and reconnects to the loopback listener automatically. **Run one Fire Bolt test is disabled; no activation IPC or HTTP endpoint exists in this build.** Renderer networking, arbitrary RPC, arbitrary UUID resolution, Node integration and untrusted-frame IPC are denied. No OpenRouter/provider client is bound.
 
 ## Exact ownership/source evidence
 

@@ -1,15 +1,29 @@
 import type { TestReader } from "./bridge.js";
 import { FireBoltDiscovery } from "./discovery.js";
 import { ensure, safeError } from "../../src/safety.js";
+import { z } from "zod";
+
+export interface BridgeSettings {
+  hasBridgeKey(): boolean;
+  saveBridgeKey(key: string): Promise<void>;
+}
+export type HarnessStatus = { connected: boolean; hasBridgeKey: boolean; execution: "DISABLED_REVIEW_REQUIRED";
+  writesDispatched: 0; view: ReturnType<FireBoltDiscovery["view"]> };
+const bridgeKeyInput = z.object({ bridgeKey: z.string().trim().min(16).max(512) }).strict();
 
 export class FireBoltService {
   readonly discovery: FireBoltDiscovery;
   private busy=false;
-  constructor(private reader: TestReader) { this.discovery=new FireBoltDiscovery(reader); }
-  status() {
+  constructor(private reader: TestReader, private settings?: BridgeSettings) { this.discovery=new FireBoltDiscovery(reader); }
+  status(): HarnessStatus {
     const view=this.discovery.view();
     if (!this.reader.connected || (view && view.advanced.epoch!==this.reader.epoch)) this.discovery.invalidate();
-    return {connected:this.reader.connected,execution:"DISABLED_REVIEW_REQUIRED",writesDispatched:0,view:this.discovery.view()};
+    return {connected:this.reader.connected,hasBridgeKey:this.settings?.hasBridgeKey()??false,execution:"DISABLED_REVIEW_REQUIRED",writesDispatched:0,view:this.discovery.view()};
+  }
+  async saveBridgeKey(input: unknown): Promise<HarnessStatus> {
+    ensure(this.settings,"BRIDGE_SETTINGS_UNAVAILABLE");
+    const parsed=bridgeKeyInput.safeParse(input);ensure(parsed.success,"BRIDGE_KEY_INVALID");
+    await this.settings.saveBridgeKey(parsed.data.bridgeKey);return this.status();
   }
   private async review(work: () => Promise<unknown>) {
     ensure(!this.busy,"TEST_BUSY"); this.busy=true;
@@ -33,6 +47,7 @@ export function testHandlers(service: FireBoltService, trusted: (event: unknown)
       return {ok:true,data:await fn(args[0])};
     } catch(error) { return {ok:false,error:safeError(error)}; }
   };
-  return {"fire-bolt:status":handler(0,()=>service.status()),"fire-bolt:detect":handler(0,()=>service.detect()),
+  return {"fire-bolt:status":handler(0,()=>service.status()),
+    "fire-bolt:save-bridge-key":handler(1,input=>service.saveBridgeKey(input)),"fire-bolt:detect":handler(0,()=>service.detect()),
     "fire-bolt:choose":handler(1,input=>service.choose(input))};
 }

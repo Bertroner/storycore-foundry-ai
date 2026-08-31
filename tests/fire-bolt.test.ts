@@ -102,12 +102,16 @@ test("discovery stops on scene change during reading and owned Item parent misma
   other.read=async(type,p)=>{const data=await read(type,p);return type==="resolve-uuid"&&String(p.uuid).startsWith("Actor.")?{...data as object,parentUuid:"Actor.wrong"}:data;};
   await assert.rejects(()=>new FireBoltService(other).detect(),/ITEM_NOT_OWNED_OR_UNSUPPORTED/);
 });
-test("test IPC exposes only read detection/row choice; unauthorized frame and oversized args fail",async()=>{
-  const h=testHandlers(new FireBoltService(new FireBoltFixture()),e=>e==="trusted");
-  assert.deepEqual(Object.keys(h),["fire-bolt:status","fire-bolt:detect","fire-bolt:choose"]);
+test("test IPC exposes fixed detection/row and DPAPI-key channels; caller, shape and secret output stay bounded",async()=>{
+  let saved="";const service=new FireBoltService(new FireBoltFixture(),{hasBridgeKey:()=>!!saved,saveBridgeKey:async key=>{saved=key;}});
+  const h=testHandlers(service,e=>e==="trusted");
+  assert.deepEqual(Object.keys(h),["fire-bolt:status","fire-bolt:save-bridge-key","fire-bolt:detect","fire-bolt:choose"]);
   assert.deepEqual(await h["fire-bolt:detect"]("untrusted"),{ok:false,error:"IPC_CALLER_DENIED"});
   assert.deepEqual(await h["fire-bolt:detect"]("trusted",{sceneId:"scene"}),{ok:false,error:"IPC_ARGS_INVALID"});
-  assert.equal((await h["fire-bolt:detect"]("trusted")).ok,true);
+  assert.deepEqual(await h["fire-bolt:save-bridge-key"]("trusted",{bridgeKey:"short"}),{ok:false,error:"BRIDGE_KEY_INVALID"});
+  const key="offline-bridge-key-value";const savedReply=await h["fire-bolt:save-bridge-key"]("trusted",{bridgeKey:key});
+  assert.equal(saved,key);assert.equal(savedReply.ok,true);assert.equal(JSON.stringify(savedReply).includes(key),false);
+  assert.equal(savedReply.ok&&(savedReply.data as {hasBridgeKey:boolean}).hasBridgeKey,true);assert.equal((await h["fire-bolt:detect"]("trusted")).ok,true);
 });
 test("read-only test Bridge rejects activation/arbitrary UUIDs; production extra reads still denied",async()=>{
   const bridge=new FireBoltReadBridge();const prod=new BridgeSession();
