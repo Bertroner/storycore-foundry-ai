@@ -4,117 +4,361 @@
 
 ## One bounded decision
 
-The sole write-intent tool is submit_combat_intent. One complete JSON object is accepted per decisionId. It chooses one native item use, optionally preceded by one offered path; a path only; or explicit end-turn. There are no arbitrary commands, scripts, macros, roll formulas, damage amounts, HP changes, effect instructions or attack counts.
+Each LLM response is exactly one DecisionResponseV1 branch: **PLAN_REQUEST** or **FINAL_INTENT**, never both or an array. A decision may include read-only planning responses before its single accepted terminal intent; exactly one response branch is allowed per model call. The adapter issues a fresh stepId for each model call, and the LLM echoes it. decisionId/snapshotId stay the same through valid preview feedback.
 
-The model selects **target Actor identity**. Optional combatantId disambiguates repeated instances. Token IDs are resolved from fresh scene/combat data at validation and again before execution, never remembered as stable identity. The acting Actor/token and authorization come from the trusted request, not LLM-selected scope.
+- PLAN_REQUEST chooses one movement goal. It cannot contain intent, planId, waypoints, commands or writes; unknown fields are rejected. Adapter validates the goal and requests Bridge plan-token-path; it returns PlanSummary or a bounded planning error to the same decision.
+- FINAL_INTENT contains the CombatIntentV1 payload: activate_item, move or end_turn. Movement may reference only a planId explicitly offered to this decision. Acceptance seals the decision; no more previews or mutations may be appended by another response.
 
-A movement plan is a reference to a concrete **movement goal** already previewed by Bridge, such as approach a specified Actor within an item-derived reach, retreat to a specified grid cell, or move to a specified grid cell. goalKind echoes that goal class; planId binds exact destination, target, budget and snapshot. The model may request other previews through the read-only planning operation before submitting intent. Path tie-breaking is deterministic geometry; no adapter rule picks a tactic or weapon.
+Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
 
-Initial automatic catalogue: supported single-target legacy weapon item use and supported walking path. Other native actions can be represented as unavailable/manual in state but cannot execute automatically until capability/availability verification is added. No generic attack-count inference for Multiattack, Extra Attack, reactions or bonus actions.
+The LLM chooses the Actor target, action/weapon and movement goal. For approach it names target plus an offered actionId; the adapter derives stop distance/units from that Item's verified native range metadata. For position/retreat the LLM supplies a single destination grid cell. Grid coordinates describe a goal, not arbitrary waypoints or movement instructions. Deterministic code may choose a geometric route/tie-break; it must not choose a different target, weapon or tactic.
+
+Token IDs are resolved from fresh scene/combat data. Optional combatantId is validated as a scope hint; it does not enable duplicate-instance support in Phase 1. The acting linked Actor/token and authorization come from the trusted request.
+
+Per decision: at most two PLAN_REQUESTs, two repair responses, five LLM responses total, and one accepted FINAL_INTENT; stop at the 30-second decision deadline or earlier snapshot/plan expiry. Plan results do not reset counters or deadline. Stale source state closes the decision and invalidates its offers. A supervised Phase 1 invocation permits at most eight decision cycles and 120 seconds total, with no automatic restart or next-NPC handoff.
+
+Every model response, including malformed output, consumes one of the five responses. Every recognized PLAN_REQUEST consumes one of the two preview slots even if invalid/blocked/timed out; the adapter may issue at most one Bridge preview per slot, with no hidden retries. Invalid output/validation failure consumes a repair allowance when another model response is requested. After the second preview, only a FINAL_INTENT is permitted. Limit exhaustion, cancellation or timeout pauses for manual control without choosing a tactic or auto-ending the turn.
 
 ## Normative JSON Schema (Draft 2020-12)
 
-Runtime validation must implement this schema plus semantic checks below. Unknown keys are rejected at every object boundary, without coercion/default insertion. Provider-specific schemas are generated from it; a provider's function declaration is not a substitute for runtime validation.
+The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1. Unknown keys are rejected at every boundary, without coercion or defaults. Provider function schemas and runtime parsing must use this same union. Nested intent decisionId/snapshotId must match the outer response and trusted request (semantic validation).
 
 ~~~json
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CombatIntentV1",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["schemaVersion", "decisionId", "snapshotId", "kind", "action", "movement"],
-  "properties": {
-    "schemaVersion": { "const": "1.0" },
-    "decisionId": { "$ref": "#/$defs/id" },
-    "snapshotId": { "$ref": "#/$defs/id" },
-    "kind": { "enum": ["activate_item", "move", "end_turn"] },
-    "action": {
-      "oneOf": [
-        { "type": "null" },
-        { "$ref": "#/$defs/itemAction" }
-      ]
-    },
-    "movement": {
-      "oneOf": [
-        { "type": "null" },
-        { "$ref": "#/$defs/movement" }
-      ]
-    },
-    "reason": { "type": "string", "maxLength": 240 }
-  },
+  "title": "DecisionResponseV1",
   "oneOf": [
     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decisionId",
+        "snapshotId",
+        "stepId",
+        "type",
+        "goal"
+      ],
       "properties": {
-        "kind": { "const": "activate_item" },
-        "action": { "$ref": "#/$defs/itemAction" }
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "stepId": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "PLAN_REQUEST"
+        },
+        "goal": {
+          "$ref": "#/$defs/planGoal"
+        }
       }
     },
     {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decisionId",
+        "snapshotId",
+        "stepId",
+        "type",
+        "intent"
+      ],
       "properties": {
-        "kind": { "const": "move" },
-        "action": { "type": "null" },
-        "movement": { "$ref": "#/$defs/movement" }
-      }
-    },
-    {
-      "properties": {
-        "kind": { "const": "end_turn" },
-        "action": { "type": "null" },
-        "movement": { "type": "null" }
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "stepId": {
+          "$ref": "#/$defs/id"
+        },
+        "type": {
+          "const": "FINAL_INTENT"
+        },
+        "intent": {
+          "$ref": "#/$defs/finalIntent"
+        }
       }
     }
   ],
   "$defs": {
-    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
     "target": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["actorId"],
+      "required": [
+        "actorId"
+      ],
       "properties": {
-        "actorId": { "$ref": "#/$defs/id" },
-        "combatantId": { "$ref": "#/$defs/id" }
+        "actorId": {
+          "$ref": "#/$defs/id"
+        },
+        "combatantId": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "itemAction": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["actionId", "itemId", "target"],
+      "required": [
+        "actionId",
+        "itemId",
+        "target"
+      ],
       "properties": {
-        "actionId": { "$ref": "#/$defs/id" },
-        "itemId": { "$ref": "#/$defs/id" },
-        "target": { "$ref": "#/$defs/target" }
+        "actionId": {
+          "$ref": "#/$defs/id"
+        },
+        "itemId": {
+          "$ref": "#/$defs/id"
+        },
+        "target": {
+          "$ref": "#/$defs/target"
+        }
       }
     },
     "movement": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["planId", "goalKind"],
+      "required": [
+        "planId",
+        "goalKind"
+      ],
       "properties": {
-        "planId": { "$ref": "#/$defs/id" },
-        "goalKind": { "enum": ["approach", "position", "retreat"] }
+        "planId": {
+          "$ref": "#/$defs/id"
+        },
+        "goalKind": {
+          "enum": [
+            "approach",
+            "position",
+            "retreat"
+          ]
+        }
       }
+    },
+    "finalIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "decisionId",
+        "snapshotId",
+        "kind",
+        "action",
+        "movement"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": "1.0"
+        },
+        "decisionId": {
+          "$ref": "#/$defs/id"
+        },
+        "snapshotId": {
+          "$ref": "#/$defs/id"
+        },
+        "kind": {
+          "enum": [
+            "activate_item",
+            "move",
+            "end_turn"
+          ]
+        },
+        "action": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/itemAction"
+            }
+          ]
+        },
+        "movement": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/movement"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 240
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "kind": {
+              "const": "activate_item"
+            },
+            "action": {
+              "$ref": "#/$defs/itemAction"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "move"
+            },
+            "action": {
+              "type": "null"
+            },
+            "movement": {
+              "$ref": "#/$defs/movement"
+            }
+          }
+        },
+        {
+          "properties": {
+            "kind": {
+              "const": "end_turn"
+            },
+            "action": {
+              "type": "null"
+            },
+            "movement": {
+              "type": "null"
+            }
+          }
+        }
+      ]
+    },
+    "gridPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y"
+      ],
+      "properties": {
+        "x": {
+          "type": "integer"
+        },
+        "y": {
+          "type": "integer"
+        }
+      }
+    },
+    "planGoal": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "target",
+            "actionId"
+          ],
+          "properties": {
+            "kind": {
+              "const": "approach"
+            },
+            "target": {
+              "$ref": "#/$defs/target"
+            },
+            "actionId": {
+              "$ref": "#/$defs/id"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "destination"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "position",
+                "retreat"
+              ]
+            },
+            "destination": {
+              "$ref": "#/$defs/gridPoint"
+            }
+          }
+        }
+      ]
     }
   }
 }
 ~~~
 
-IDs are opaque: do not assume Foundry UUID format/length beyond the bound, derive IDs from names, or accept a name instead. Reject duplicate JSON keys, trailing non-JSON content, truncated tool arguments, non-finite numbers and payloads over 8 KiB UTF-8 before semantic processing. In this schema there are no model-supplied numeric rule values.
+IDs are opaque nonempty strings <=128 characters. Reject duplicate JSON keys, trailing prose, truncated arguments and responses over 8 KiB UTF-8. Validate destination cells against the selected scene bounds; do not accept a path/waypoint array or model-supplied budget/rule values.
 
-Example, using catalogue IDs from the state document:
+Example first response: request a preview without committing to movement or activation.
 
 ~~~json
 {
   "schemaVersion": "1.0",
   "decisionId": "decision-17",
   "snapshotId": "snapshot-42",
-  "kind": "activate_item",
-  "action": {
-    "actionId": "action-scimitar",
-    "itemId": "item-scimitar",
-    "target": { "actorId": "actor-hero", "combatantId": "combatant-hero" }
-  },
-  "movement": { "planId": "plan-approach-hero", "goalKind": "approach" },
-  "reason": "Close with the intruder guarding the doorway."
+  "stepId": "step-1",
+  "type": "PLAN_REQUEST",
+  "goal": {
+    "kind": "approach",
+    "target": {
+      "actorId": "actor-hero",
+      "combatantId": "combatant-hero"
+    },
+    "actionId": "action-scimitar"
+  }
+}
+~~~
+
+After the adapter supplies the offered PlanSummary back to this same decision, the model may choose the final intent. It remains free to choose another supported tactic instead; requesting an approach preview does not commit to Scimitar use.
+
+~~~json
+{
+  "schemaVersion": "1.0",
+  "decisionId": "decision-17",
+  "snapshotId": "snapshot-42",
+  "stepId": "step-2",
+  "type": "FINAL_INTENT",
+  "intent": {
+    "schemaVersion": "1.0",
+    "decisionId": "decision-17",
+    "snapshotId": "snapshot-42",
+    "kind": "activate_item",
+    "action": {
+      "actionId": "action-scimitar",
+      "itemId": "item-scimitar",
+      "target": {
+        "actorId": "actor-hero",
+        "combatantId": "combatant-hero"
+      }
+    },
+    "movement": {
+      "planId": "plan-approach-hero",
+      "goalKind": "approach"
+    },
+    "reason": "Close with the intruder guarding the doorway."
+  }
 }
 ~~~
 
@@ -122,17 +366,20 @@ The reason is an optional short decision summary for logs, not hidden chain-of-t
 
 ## Validator order and behavior
 
+Only FINAL_INTENT proceeds to item/path-write validation and execution. PLAN_REQUEST branches after shared parse, authorization, freshness and scope checks, and can invoke only read-only geometry planning.
+
 | Stage | Required behavior | Failure result |
 |---|---|---|
-| Parse/version | Exact schema, size, one terminal intent, recognized version and IDs; no unknown keys or prose fallback | INVALID_INTENT |
+| Parse/version | Exactly one PLAN_REQUEST or FINAL_INTENT branch, size, recognized version, open decision/snapshot/step IDs; no unknown keys or prose fallback | INVALID_INTENT |
 | Authorization | Trusted session controls this world/scene/Actor/combatant and permits the requested operation; current Bridge is GM and capabilities are verified | NOT_AUTHORIZED / UNSUPPORTED |
-| Correlation/replay | decisionId and snapshotId match an open trusted decision. Same ID/body returns cached progress/result; same ID/different body rejects. No new dispatch for a closed/in-flight decision | DUPLICATE_CONFLICT / cached result |
+| Correlation/replay | Match the issued stepId within decisionId/snapshotId. Same (decisionId, stepId)/body returns cached feedback/result; changed body for that pair rejects. Distinct issued steps allow preview → final or bounded repair. An accepted FINAL_INTENT seals the decision | DUPLICATE_CONFLICT / cached result |
 | Freshness | Fresh READ bracket agrees on combat.scene, combatId, round, turn, current combatant/Actor/token, connection generation, scene revision and relevant Actor/item/resource/target facts | STALE_STATE |
-| Acting instance | Resolve from current combatant, verify token.actorId/base Actor relationship; effective Actor/resources/item come from this token; reject missing or ambiguous matches | INSTANCE_MISMATCH / AMBIGUOUS_TARGET |
+| Acting instance | Require linked Actor and unique scene token for Phase 1; resolve current combatant and reject synthetic or duplicate instances. Effective Actor/resources/item must agree | INSTANCE_MISMATCH / UNSUPPORTED |
+| Planning branch | Validate one PlanGoalV1, catalogue action/target, scene bounds, remaining preview slots and deadline. Translate to Bridge plan-token-path only; return PlanSummary to same decision. Do not execute a write | INVALID_GOAL / PLAN_LIMIT |
 | Catalogue | actionId and itemId are paired in the supplied catalogue, Item still owned by effective acting Actor; do not reject solely for hasActivities:false | ITEM_UNAVAILABLE |
 | Native availability | Known counters/preparation/equipment/recharge/activation metadata and native constraints allow operation in supported profile. Missing constraints do not become available; native pipeline still has final say | UNAVAILABLE / UNKNOWN_LEGALITY |
 | Target | Resolve actorId (+ combatantId if supplied) to fresh scene token. Must be one known perceived target in allowed target set, matching Item target type/count, Foundry disposition and StoryCore relationship context without making a tactical choice | AMBIGUOUS_TARGET / TARGET_UNAVAILABLE |
-| Path | Plan exists, same actor/token/scene/decision snapshot, unexpired, same goalKind and target/destination, still valid under native collision/occupancy/bounds; native measured cost within known remaining budget | STALE_PLAN / PATH_UNAVAILABLE |
+| Path | Non-null ready planId was offered to this decision, present in movement.plans with matching offeredFor.decisionId/snapshotId, scope and goal; unexpired, native cost within known budget and geometry still valid | STALE_PLAN / PATH_UNAVAILABLE |
 | Item after movement | Plan endpoint provisionally permits intended action; after actual movement, OBSERVE then recheck target position/perception, native range, resources, item and current turn | ACTION_INVALIDATED |
 | Execution | Translator emits only allowlisted guarded move-token, dnd5e/activate-item or next-turn fields. LLM arguments are never spread into Bridge params | INTERNAL_CONTRACT_ERROR |
 | Completion | Fresh readback and matched workflow (when expected) determine observation. Transport success or activated:true alone is not completed rules resolution | UNKNOWN_OUTCOME / PARTIAL |
@@ -144,7 +391,7 @@ Known action economy requires a native/verified source or an explicitly initiali
 ## Rejection, cancellation and partial work
 
 - Return code, affected fields, short explanation and a fresh snapshot/allowed catalogue when safe. **Do not replace the requested action with a tactical fallback.**
-- Allow at most two schema/legality repair attempts for a decision (initial response plus two repairs); stale state opens a new decisionId. Cap a runner at eight decision cycles and 120 seconds before pausing. Bounds are operational limits, not combat rules.
+- Apply the shared bounds above to previews, final-intent repairs and all model responses together. New decisionId after stale state consumes the same supervised invocation budget; it does not reset the eight-cycle/120-second cap.
 - No LLM/provider success by the deadline: pause for manual control. Do not auto-end a turn as a fallback.
 - Cancellation before dispatch sends no writes. After movement/item dispatch, finish readback/reconciliation; report actual partial state.
 - If movement succeeds but the item becomes invalid, retain observed movement and spent budget. Request a fresh LLM decision; never undo movement automatically or choose another Item.
@@ -159,3 +406,4 @@ Reject: invented Item or plan; extra code/command/damage fields; mismatched acti
 
 Pause: uncertain activation, unrelated Midi completion, manual movement during execution, partial route, disconnect after write dispatch. These tests validate boundaries and failure behavior, not a duplicate implementation of D&D.
 
+Planning cases to verify in future implementation: PLAN_REQUEST without any write; feedback returns to the same decision; rejected arbitrary waypoints; rejected combined plan/final response; unknown/unoffered planId; second-preview limit; malformed responses cannot reset budgets; replayed step returns cached feedback; final acceptance closes planning. This review runs no implementation or live POC tests.

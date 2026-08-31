@@ -2,6 +2,18 @@
 
 **Proposed compact decision DTO.** Raw Bridge responses remain adapter-internal. StoryCore owns memory/personality/relationships; Foundry owns live state, and D&D5e/Midi own rules. This schema is input to [COMBAT_INTENT_SCHEMA.md](COMBAT_INTENT_SCHEMA.md), not a duplicate Actor database.
 
+Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+
+## Decision input and read-only planning feedback
+
+Each LLM response is exactly PLAN_REQUEST or FINAL_INTENT as defined by COMBAT_INTENT_SCHEMA.md. The initial state may have an empty movement.plans array; the adapter does not have to preselect tactical goals. The LLM chooses one PlanGoalV1, the adapter requests Bridge plan-token-path, and the resulting PlanSummary is supplied back into the **same bounded decision**, with the same live snapshot and reduced limits.
+
+Per decision: at most two PLAN_REQUESTs, two repair responses, five LLM responses total, and one accepted FINAL_INTENT; stop at the 30-second decision deadline or earlier snapshot/plan expiry. Plan results do not reset counters or deadline. Stale source state closes the decision and invalidates its offers. A supervised Phase 1 invocation permits at most eight decision cycles and 120 seconds total, with no automatic restart or next-NPC handoff.
+
+The trusted DecisionRequestV1 carries stepId, counters, deadline and at most two planFeedback entries (WIRE_CONTRACT.md). Each response and preview attempt consumes its respective slot, including failure; feedback never resets a deadline/counter. FINAL_INTENT selects only a ready, non-null, unexpired planId explicitly offered for its decision/snapshot. A preview is neither movement authorization nor commitment to the associated weapon.
+
+PlanGoalV1 is LLM-facing. Goal below is an adapter-expanded display/geometry description: for approach, use the selected actionId's verified native range and scene units; for position/retreat, use the one LLM-chosen grid cell. The LLM cannot set budget, cost, waypoints or arbitrary Bridge params. Deterministic code finds geometry, not a substitute tactic.
+
 ## Sensor sources and trust
 
 | Data | Current source | Normalization / missing support |
@@ -9,7 +21,7 @@
 | World/system identity | B get-world-info | Pin Foundry 12.343 and D&D5e 3.3.1; installed Midi/Bridge version needs proposed capability response. |
 | Combat/current combatant | B get-combat-state with combatId | Preserve round, turn, combatant, Actor, token. Proposed scoped context verifies combat.scene. |
 | Tokens/instance selection | B get-scene-tokens + get-token with sceneId | Match current combatant's token, never first Actor match. Preserve base Actor ID as identity. Proposed scope sensor adds actorLink/effective Actor UUID. |
-| Self core/resources/items | B get-actor and get-actor-items | B system is getRollData(), item system is toObject(false). Whitelist prepared fields; full token Actor scope is a required extension for unlinked instances. |
+| Self core/resources/items | B get-actor and get-actor-items | B system is getRollData(), item system is toObject(false). Whitelist prepared fields; Phase 1 requires a linked Actor/unique token, so world Actor reads are usable after validation. Token-scoped synthetic support is deferred. |
 | Conditions/effects | B get-actor-effects and statuses | Include active statuses and short effect summaries, disabled/suppressed flags if available. Missing complete applicable-effect list stays explicitly unknown. Never evaluate effect change scripts/formulas. |
 | LOS/distance | B get-combat-turn-context | Label existing LOS as wall geometry, and distance as approximate grid distance. Proposed native scoped sensor provides verified perception/range facts; do not use GM visibility as NPC perception. |
 | Movement/path | Proposed plan-token-path | Cost, goal, endpoint, budget, blocked/unsupported reason, expiry and plan ID. Path search remains inside Bridge; raw waypoints stay internal by default. |
@@ -17,7 +29,7 @@
 
 READ is a consistency bracket: get combat/scope before → gather required independent reads → get combat/scope after; reject if identity/turn/revision changed. Proposed revision is an extension-local counter invalidated by relevant Foundry document hooks, with a session epoch. It is not a native atomic snapshot. Re-read before every write, including between movement and activation.
 
-Unknown numeric data is null, not zero; unknown booleans are null, not true. Disposition is a Foundry token fact, not an Actor relationship or tactical command. Relationships arrive separately from StoryCore. For repeated base Actor instances, show separate token/combatant entries and require disambiguation.
+Unknown numeric data is null, not zero; unknown booleans are null, not true. Disposition is a Foundry token fact, not an Actor relationship or tactical command. Relationships arrive separately from StoryCore. For repeated base Actor instances, reject duplicate instances in Phase 1; separate entries/disambiguation are future support.
 
 ## Normative shape
 
@@ -30,6 +42,9 @@ type FactSource = "native" | "bridge-approximation" | "turn-lease" | "unknown";
 type Counter = { value: number | null; max: number | null };
 type TargetRef = { actorId: ID; combatantId?: ID };
 type GridPoint = { x: number; y: number };
+type PlanGoalV1 =
+  | { kind: "approach"; target: TargetRef; actionId: ID }
+  | { kind: "position" | "retreat"; destination: GridPoint };
 type Availability = "available" | "conditional" | "unavailable" | "unknown";
 type Goal = {
   kind: "approach" | "position" | "retreat";
@@ -67,6 +82,7 @@ type ActionCard = {
 };
 type PlanSummary = {
   planId: ID | null;
+  offeredFor: { decisionId: ID; snapshotId: ID; requestStepId: ID };
   goal: Goal;
   endpoint: GridPoint | null;
   status: "ready" | "over_budget" | "blocked" | "unsupported" | "unknown";
@@ -166,8 +182,8 @@ Additional invariants:
 
 - self identity equals combat.current; scope is selected by trusted caller and verified in Foundry.
 - Goal approach requires target and within, destination null; position/retreat requires destination and null target/within. within is native item-derived range or an explicit geometry request, never a model-authored rule override.
-- Only ready, unexpired plans with a non-null planId may be selected. Search-limit/stale preview results normalize to unknown with reasons; no plan ID is executable for failed previews.
-- IDs/actionId/planId are unique within snapshot; Item ID is scoped to acting effective Actor. Plan IDs bind snapshot/scene/token/goal in Bridge.
+- Only ready, unexpired plans with a non-null planId explicitly offered in movement.plans to the current decisionId/snapshotId may be selected. Search-limit/stale preview results normalize to unknown with reasons; no plan ID is executable for failed previews.
+- IDs/actionId/planId are unique within snapshot; Item ID is scoped to acting effective Actor. Plan IDs bind decision/snapshot/scene/token/goal in Bridge; offeredFor.requestStepId identifies the PLAN_REQUEST that produced the offer. An offer from another decision is not reusable.
 - Activation cost/range/uses/damageTypes are copied metadata for selection, not permission to calculate or apply damage. Do not parse arbitrary item prose into executable rules.
 - eligibleTargets are provisional known candidates, not a prediction of hit/success; conditional melee can require the offered approach path. Revalidate after movement.
 - budgets describe known remaining allowance; action Available is not inferred from initiative index. Speed is capacity only. If source is unknown, counters/availability are null and automatic execution is disabled.
@@ -175,11 +191,11 @@ Additional invariants:
 - No raw system, flags, biography, HTML, script, macro, journal, wall array, image/base64 or Compendium content field is allowed.
 - Only targets whose perception is positively established are included in nearby. Unknown/hidden actors stay internal; quality gives aggregate omissions without names/locations. Secret tokens are not exposed merely because the GM can see them.
 - Exact enemy HP/AC/resources are not exposed by default. health is a permitted observation supplied by the sensor/StoryCore knowledge policy, not a rules-derived damage estimate. Self HP/resources may be exact.
-- nearby may include perceived noncombat actors using token-scoped sensor extension; old context lists combatants only. Disambiguate repeated noncombat instances or make them untargetable in this initial intent version.
+- Phase 1 uses uniquely resolved linked combatants in the single active combat. General noncombat/synthetic/duplicate-instance targeting is future support, not enabled by these broader DTO fields.
 
 ## Illustrative fixture
 
-This example describes a **hypothetical extended Bridge after capability verification**, not evidence that proposed APIs exist. Runtime module-version strings below are test placeholders. IDs are examples. Native measurement/turn budget have been supplied by a verified fixture; a real normalizer must not invent them.
+This example is the state **after PLAN_REQUEST step-1 feedback** in decision-17; step-2 may return FINAL_INTENT referencing this offered plan. It describes a **hypothetical extended Bridge after capability verification**, not evidence that proposed APIs exist. Runtime module-version strings below are test placeholders. IDs are examples. Native measurement/turn budget have been supplied by a verified fixture; a real normalizer must not invent them.
 
 ~~~json
 {
@@ -244,6 +260,7 @@ This example describes a **hypothetical extended Bridge after capability verific
     "plans": [
       {
         "planId": "plan-approach-hero",
+        "offeredFor": { "decisionId": "decision-17", "snapshotId": "snapshot-42", "requestStepId": "step-1" },
         "goal": {
           "kind": "approach", "target": { "actorId": "actor-hero", "combatantId": "combatant-hero" },
           "destination": null, "within": 5, "units": "ft"
@@ -266,10 +283,10 @@ Foundry disposition friendly in this example is a token setting relative to the 
 ## Compactness and refresh
 
 - Hard maximum 24 KiB serialized UTF-8 for the state; target roughly 2–4k model tokens in typical encounters. Byte cap is authoritative, token count is model-dependent.
-- At most 24 action cards, 12 nearby perceived actors, 8 plan summaries, 16 effects, 16 resources and 10 spell-slot entries. Summary/description <=240 characters, names <=80 in emitted data; at most 8 blockers/cost entries per action. Bound strings/arrays before calling LLM.
-- Never silently discard a legal choice as a tactical optimization. If caps omit relevant actions/targets or required evidence, set completeForDecision=false and do a read-only page/focus refinement before decision. Refined catalogue gets a new snapshotId; model chooses focus rather than adapter selecting a weapon.
+- At most 24 action cards, 12 nearby perceived actors, 2 plan summaries per decision, 16 effects, 16 resources and 10 spell-slot entries. Summary/description <=240 characters, names <=80 in emitted data; at most 8 blockers/cost entries per action. Bound strings/arrays before calling LLM.
+- Never silently discard a legal choice as a tactical optimization. If caps omit relevant actions/targets or required evidence, set completeForDecision=false and pause for supervised input refinement before another decision. There is no third LLM response branch or unrestricted paging tool. Refined catalogue gets a new snapshotId and decisionId within the invocation limit; do not select a weapon as an adapter fallback.
 - Remove redundant descriptions first, not identity/current turn/budget/unknown flags. Unsupported cards may be short blocked summaries. Do not replace missing data with guesses to fit the budget.
-- Default snapshot/plan expiry is 30 seconds, but expiry is only a maximum age; revalidate live facts even within that interval. A long LLM call requires refresh/new decision if stale.
+- Snapshot/plan expiry is at most 30 seconds and no later than the current decision deadline; preview feedback never extends it. Expiry is only a maximum age; revalidate live facts even within that interval. A long LLM call requires refresh/new decision if stale.
 - Turn, token, Item, Actor, effects, walls/doors, lighting/perception, grid or scene changes invalidate relevant plans/snapshots. Reconnect changes sessionEpoch. No event alone proves completion; use fresh reads.
 - raw Bridge payloads may be larger than 24 KiB and require a separately bounded transport limit (default 2 MiB); they never pass through the LLM serializer.
 
@@ -278,4 +295,3 @@ Foundry disposition friendly in this example is a token setting relative to the 
 After movement read token coordinates again; immediate write coordinates can be stale. After activation read effective Actor/target HP/resources/effects and current combat again. A matched Midi workflow supplies attack/hit/save/damage results; empty rolls is allowed. Observed HP differences are facts, not permission to apply workflow.damageTotal manually.
 
 Resource and effect deltas are reported only for the same resolved instance with valid before/after observations. Concurrent external changes may make attribution unknown. Never infer an attack missed solely from unchanged HP or a missing workflow.
-

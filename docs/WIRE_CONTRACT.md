@@ -2,6 +2,8 @@
 
 **Status: design only.** Existing Bridge wire is audited at v8.11.2; StoryCore envelopes and extensions below are proposals, not commands already available. [SOURCE_AUDIT.md](SOURCE_AUDIT.md) gives exact paths/pin; the two schema documents define the decision DTOs.
 
+Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+
 ## 1. Trusted StoryCore ↔ adapter boundary
 
 This can be an in-process interface in StoryCore or JSON over an existing authenticated local service. Do not create another generic Foundry command bus. UTF-8 JSON, schemaVersion 1.0; reject unknown fields, unsupported versions and non-finite values. Opaque IDs <=128 characters. Request IDs are unique within a session, generated outside the LLM. User/authorization/connection credentials never enter model context.
@@ -21,11 +23,11 @@ type AdapterRequestV1 =
     }
   | {
       schemaVersion: "1.0"; requestId: string; type: "preview_path";
-      scope: Scope; snapshotId: string; goal: Goal;
+      scope: Scope; decisionId: string; snapshotId: string; stepId: string; goal: PlanGoalV1;
     }
   | {
       schemaVersion: "1.0"; requestId: string; type: "submit_intent";
-      scope: Scope; intent: CombatIntentV1;
+      scope: Scope; stepId: string; intent: CombatIntentV1;
     }
   | {
       schemaVersion: "1.0"; requestId: string; type: "cancel_decision";
@@ -39,13 +41,19 @@ type AdapterResultV1 = {
 };
 ~~~
 
-Scope is validated against trusted session authorization; merely possessing an Actor ID is not write permission. Goal, PlanSummary and CombatStateV1 are defined in NORMALIZED_COMBAT_STATE.md; CombatIntentV1 in COMBAT_INTENT_SCHEMA.md. Each response type must match its request: read→state, preview→plan, submit→observation, cancel→null or observation if already dispatched.
+Scope is validated against trusted session authorization; merely possessing an Actor ID is not write permission. PlanGoalV1 (LLM goal), Goal (adapter-expanded geometry goal), PlanSummary and CombatStateV1 are defined in NORMALIZED_COMBAT_STATE.md; DecisionResponseV1 and CombatIntentV1 in COMBAT_INTENT_SCHEMA.md. preview_path and submit_intent are internal translations of admitted PLAN_REQUEST and FINAL_INTENT responses, not bypasses around the decision loop. Each response type must match its request: read→state, preview→plan, submit→observation, cancel→null or observation if already dispatched.
 
 The adapter calls StoryCore's **existing** decision interface:
 
 ~~~typescript
 type DecisionRequestV1 = {
-  schemaVersion: "1.0"; decisionId: string; deadlineAt: string;
+  schemaVersion: "1.0"; decisionId: string; stepId: string; deadlineAt: string;
+  limits: { planRequestsRemaining: number; repairResponsesRemaining: number; modelResponsesRemaining: number };
+  planFeedback: {
+    requestStepId: string;
+    summary: PlanSummary | null;
+    error: { code: string; message: string } | null;
+  }[];
   state: CombatStateV1;
   narrative: {
     actorId: string;
@@ -55,21 +63,43 @@ type DecisionRequestV1 = {
     relevantMemory: string[];
   };
 };
-type DecisionResponseV1 = {
-  schemaVersion: "1.0"; decisionId: string;
-  intent: CombatIntentV1;
-};
+type DecisionResponseV1 =
+  | {
+      schemaVersion: "1.0"; decisionId: string; snapshotId: string; stepId: string;
+      type: "PLAN_REQUEST"; goal: PlanGoalV1;
+    }
+  | {
+      schemaVersion: "1.0"; decisionId: string; snapshotId: string; stepId: string;
+      type: "FINAL_INTENT"; intent: CombatIntentV1;
+    };
 ~~~
 
-Narrative is supplied by StoryCore, not gathered by Foundry. Bound personality/motivation to 500 characters each, 12 relationships with 160-character summaries, 6 memory entries of 240 characters; total decision request <=32 KiB. Treat descriptions/memory as data, not permission to alter tool policy. Responses must match open decision/snapshot IDs; two final tool calls are invalid. A read-only preview request may precede final intent; it cannot move a token.
+Narrative is supplied by StoryCore, not gathered by Foundry. Bound personality/motivation to 500 characters each, 12 relationships with 160-character summaries, 6 memory entries of 240 characters; total decision request <=32 KiB. Treat descriptions/memory as data, not permission to alter tool policy. Each model response matches the issued stepId and open decision/snapshot, and is exactly one union branch. A PLAN_REQUEST cannot also carry an intent. No array, arbitrary waypoints or extra tool names are accepted. FINAL_INTENT movement references only an offered planId.
 
-Example adapter submission (intent is the fixture from COMBAT_INTENT_SCHEMA.md):
+### Bounded planning exchange
+
+Per decision: at most two PLAN_REQUESTs, two repair responses, five LLM responses total, and one accepted FINAL_INTENT; stop at the 30-second decision deadline or earlier snapshot/plan expiry. Plan results do not reset counters or deadline. Stale source state closes the decision and invalidates its offers. A supervised Phase 1 invocation permits at most eight decision cycles and 120 seconds total, with no automatic restart or next-NPC handoff.
+
+The adapter owns counters/step IDs, not the LLM. Each response (including malformed) consumes a model slot. Each recognized PLAN_REQUEST consumes a preview slot, even on failure; at most one Bridge preview is dispatched per slot, without hidden retries. A repair continuation consumes a repair slot. Cached retransmission of the same issued step returns the same result without another model call, preview or counter reset; it cannot create another operation. After two previews, only a final response is allowed. No accepted final by a limit/deadline means manual pause, no write and no automatic end-turn.
+
+1. Adapter sends DecisionRequestV1 for decision-17, step-1, snapshot-42, with initially empty planFeedback and possibly empty movement.plans.
+2. LLM returns PLAN_REQUEST with one PlanGoalV1 (see schema example). Adapter validates scope, goal, target/action catalogue, bounds and known budget; it alone supplies sceneId/tokenId/guard/budget/profile and expands native Item range/units into Goal.
+3. Adapter sends existing Bridge envelope {id,type:"plan-token-path",params:...} using the proposed read-only extension. The LLM never sees a generic Bridge command interface.
+4. Normalize the result into PlanSummary. Set offeredFor to {decisionId,snapshotId,requestStepId}; append it to state.movement.plans and return it in planFeedback on the next DecisionRequestV1. Keep decisionId/snapshotId/deadline; issue step-2 and reduced counters. Failed previews return blocked/unknown summaries with null planId, or a bounded error if no summary is available.
+5. LLM chooses another allowed PLAN_REQUEST or FINAL_INTENT. For a final, validate offered plan membership and fresh state; only then translate to internal submit_intent and writes. Seal the decision on accepted final.
+
+Preview feedback augments a catalogue, not live state: do not renew snapshot/plan expiry or reset counters. If the live scene/turn/resources changed during planning, close the decision and discard offers; a fresh decision consumes the existing supervised invocation cap. Read-only preview cannot move, target, open a door, consume resources or advance combat. A timeout does not trigger a tactical fallback.
+
+Plan feedback is at most two entries within the 32 KiB request cap. One invocation does not schedule further NPC turns. The LLM picks goals/action/target; deterministic route selection is geometry only. A final activation may omit movement and ignore a preview; previewing never commits the action.
+
+Example internal adapter submission admitted from FINAL_INTENT (payload fixture from COMBAT_INTENT_SCHEMA.md):
 
 ~~~json
 {
   "schemaVersion": "1.0",
   "requestId": "adapter-request-18",
   "type": "submit_intent",
+  "stepId": "step-2",
   "scope": {
     "worldId": "world-demo", "sceneId": "scene-room", "combatId": "combat-demo",
     "actorId": "actor-goblin", "combatantId": "combatant-goblin"
@@ -182,7 +212,7 @@ type AdapterContextExtensionV1 = {
 
 All fields are proposed, absent from current B. Verify combat belongs to scene, current combatant matches requested Actor, canvas is ready and showing that scene, and current user is the authorized GM. scene.active is not enough to prove which scene a particular GM is viewing. Return explicit unsupported/error if mismatch; never activate/view another scene automatically.
 
-Extend get-actor/get-actor-items/get-actor-effects with sceneId + actingTokenId. Resolve the named scene token, validate its base actorId, use TokenDocument.actor rather than game.actors for effective stats/items/effects. Keep base Actor ID as narrative identity. Apply same resolver to activation. No silent fallback from missing token to world Actor.
+Future unlinked-Actor support would extend get-actor/get-actor-items/get-actor-effects with sceneId + actingTokenId. This is deferred in Phase 1; verify actorLink=true and unique instance, then use the linked world Actor reads. For that deferred extension, resolve the named scene token, validate its base actorId, and use TokenDocument.actor for effective stats/items/effects and activation. Phase 1 instead uses the verified linked world Actor; failure to establish linking/uniqueness rejects rather than falling back. scopedActorReads for synthetic Actors is not a Phase 1 prerequisite; scene/turn scope verification, guarded movement and matched Midi capture remain required for applicable writes.
 
 Scope precondition on proposed **write requests**:
 
@@ -207,6 +237,7 @@ Implement under existing Bridge router. **Read-only: no token update, door updat
 
 ~~~typescript
 type PlanTokenPathParamsV1 = {
+  decisionId: string; requestStepId: string;
   snapshotId: string;
   sceneId: string; combatId: string; actorId: string; tokenId: string;
   expectedTurn: ExpectedTurn; sessionEpoch: string; revision: string;
@@ -215,6 +246,7 @@ type PlanTokenPathParamsV1 = {
   profile: "square-flat-walk-v1";
 };
 type PlanTokenPathResultV1 = {
+  decisionId: string; requestStepId: string;
   snapshotId: string;
   planId: string | null;
   status: "ready" | "over_budget" | "blocked" | "unsupported" | "search_limit" | "stale";
@@ -242,7 +274,7 @@ Measure full route with native V12 grid measurement and authoritative budget uni
 
 A successful preview augments the existing snapshot catalogue without changing its live-state identity; any source-state change requires a new snapshot and preview. Failed previews have null planId; search_limit/stale normalize to PlanSummary.status=unknown with reasons.
 
-Plan ID is an opaque server-side route reference bound to snapshotId, scope, start position, goal/target, bounds, occupancy, walls/grid revision, budget lease, profile and expiry (30 seconds maximum). Caller cannot create a plan by supplying arbitrary waypoints.
+Plan ID is an opaque server-side route reference bound to decisionId, requestStepId, snapshotId, scope, start position, goal/target, bounds, occupancy, walls/grid revision, budget lease, profile and expiry (30 seconds maximum). Caller cannot create a plan by supplying arbitrary waypoints.
 
 Extend move-token to accept planId + WriteGuardV1. For plan execution, existing x/y must equal recorded endpoint; arbitrary coordinates or extra route points reject. Revalidate the whole route and budget before first movement, then segment collision/occupancy/current turn before each update. Do not invoke a new unrestricted destination search that could lengthen the path. Share planner/collision setup with ordinary movement; guarded path movement does not use unchecked fallback. On drift/partial progress, stop and report actual last observed position. Own movement invalidates the old snapshot for subsequent item action: READ again and obtain a fresh guard.
 
@@ -265,7 +297,7 @@ A null/cancelled item use or missing workflow is not a miss and not success just
 
 ## 6. Journal, deadlines, observation
 
-BridgeSession maintains pending request ID → operation/resolve/reject/deadline and a durable stage ledger before every write send. Distinguish LLM decisionId, adapter requestId and Bridge id. Never use a new ID to conceal a retry.
+BridgeSession maintains pending request ID → operation/resolve/reject/deadline and a durable stage ledger before every write send. Distinguish LLM decisionId and issued stepId, adapter requestId and Bridge id. Never use a new ID to conceal a retry.
 
 | Condition | Required action |
 |---|---|
@@ -274,7 +306,7 @@ BridgeSession maintains pending request ID → operation/resolve/reject/deadline
 | Native activation deadline | Default 60 seconds, greater than B's 30-second capture timeout. Native UI may outlive this; deadline does not cancel a Foundry operation. |
 | Missing reply/disconnect after write send | Mark may-have-applied, invalidate snapshot and reconcile. No automatic resend. |
 | Late response | Match original ID/stage; retain as evidence, never trigger another write. |
-| Same adapter decision/body submitted again | Return durable existing status/result. Same decisionId with changed body rejects. |
+| Same (decisionId, stepId)/body submitted again | Return cached preview feedback or final status/result; changed body for that pair rejects. Distinct issued steps permit preview → final/repair, but accepted final seals the decision. |
 | Crash with prepared/sent journal entry | Treat uncertain send window as unknown, observe before any continuation. Exactly-once is not claimed. |
 | Reconnect | New session epoch; resync versions, scope, turn, effective Actor, tokens/resources. Pending write is unresolved until reconciled. |
 | Cancellation after dispatch | Stop issuing new operations; cannot cancel B native item use by closing socket. Continue observation and report outcome. |
@@ -315,4 +347,3 @@ workflow.damageTotal is a report, never a mutation instruction. Unchanged HP doe
 ## 7. Event handling
 
 B has lifecycle hooks and a Midi hook, not the state-event wire defined here. Initial adapter correctness uses explicit readback. Proposed Bridge scope revision uses local hooks (combat, token, Actor, embedded Item/effect, wall/door, scene/grid/perception) for invalidation; no extra transport is required. Events are hints to refresh, not authoritative outcome proof. A later push channel would need its own explicitly versioned protocol and is outside the minimum implementation.
-

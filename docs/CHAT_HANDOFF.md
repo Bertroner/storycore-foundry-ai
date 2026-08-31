@@ -1,108 +1,114 @@
 # StoryCore Foundry AI — Chat Handoff
 
-This file exists so a new ChatGPT/Codex session can continue the project without reconstructing history from memory.
+Last updated: 2026-08-31
+Repository: Bertroner/storycore-foundry-ai
+Branch: main
 
-## Audit checkpoint — 2026-08-31
+## Phase status
 
-The six source-audit/design documents are complete; begin with [SOURCE_AUDIT.md](SOURCE_AUDIT.md) and [REUSE_PLAN.md](REUSE_PLAN.md). The latter contains the exact minimal modules, Bridge patch seams, compatibility gates and implementation order. Existing POC facts remain preserved. No production code, donor changes, new live combat tests or Foundry upgrades were made. Proposed wire extensions are explicitly distinct from the current Bridge API. Stop after documentation unless implementation is requested.
+**Phase 0 is COMPLETE.**
+**Exact next phase: Phase 1 — Minimal Vertical Slice.**
 
-## Start here
+The source audit and six design documents are complete and are canonical inputs. Do not repeat the audit or replay CODEX_START_PROMPT.md as a new task. This review changes documentation only; Phase 1 implementation has not started.
 
-Repository: `https://github.com/Bertroner/storycore-foundry-ai`
-Branch: `main`
+PROJECT_STATE.md is the canonical checkpoint; CHAT_HANDOFF.md mirrors its status, scope, evidence and next step. The Phase 1 scope below limits the broader future architecture described in the audit documents. Deferred capabilities are not prerequisites to implement for this slice; unsupported cases must be rejected.
 
-Read these files in order:
+## Canonical inputs
 
-1. `AGENTS.md`
-2. `docs/PROJECT_STATE.md`
-3. `docs/PROVEN_POC.md`
-4. `docs/ARCHITECTURE_TARGET.md`
-5. `docs/REFERENCE_MATRIX.md`
-6. `CODEX_START_PROMPT.md`
-7. latest commits on `main`
+Read AGENTS.md, this checkpoint and [PROVEN_POC.md](PROVEN_POC.md), then the six completed documents:
 
-Treat `docs/PROJECT_STATE.md` as the canonical current checkpoint.
+1. [SOURCE_AUDIT.md](SOURCE_AUDIT.md) — exact donor pins, source symbols and license evidence.
+2. [COMPATIBILITY_MATRIX.md](COMPATIBILITY_MATRIX.md) — V12 compatibility and risks.
+3. [REUSE_PLAN.md](REUSE_PLAN.md) — reuse decisions and module boundaries, constrained by the Phase 1 scope here.
+4. [WIRE_CONTRACT.md](WIRE_CONTRACT.md) — trusted envelopes, bounded planning exchange and Bridge mapping.
+5. [COMBAT_INTENT_SCHEMA.md](COMBAT_INTENT_SCHEMA.md) — PLAN_REQUEST / FINAL_INTENT and deterministic validation.
+6. [NORMALIZED_COMBAT_STATE.md](NORMALIZED_COMBAT_STATE.md) — compact facts and offered PlanSummary catalogue.
 
-## What this project is
+The pinned donors have already been audited. Their revisions/licenses are recorded in SOURCE_AUDIT.md; _references/ remains read-only and gitignored. MIT adaptations require notices; PF2e assistant remains architecture-only without a verified reusable license.
 
-StoryCore is the narrative/AI/memory layer. Foundry VTT is the live tabletop/rules state. D&D5e + Midi-QOL are authoritative for combat resolution.
+## Runtime and ownership
 
-Target loop:
+- Foundry VTT: **Version 12 Stable — Build 343**. Never upgrade Foundry or redesign around V13/14.
+- D&D5e: **3.3.1**; Midi-QOL and API Bridge are installed and proven locally.
+- StoryCore owns memory, NPC personality, relationships, LLM decisions, voice and media.
+- Foundry owns scene state, tokens, walls, LOS, combat tracker, Actors, Items, Compendiums and documents.
+- D&D5e + Midi-QOL own combat rules and resolution. StoryCore never calculates/applies attack rolls, saves, damage, HP changes, resistance or resource consumption.
+- Actor ID is stable narrative identity; Token ID is a scene instance resolved at runtime. Pass explicit scene/combat scope and validate it; do not assume unsupported fields work on the current Bridge.
+- READ → NORMALIZE → LLM DECIDE → VALIDATE → COMMAND → OBSERVE. Fresh OBSERVE after every write is authoritative.
 
-`READ → NORMALIZE → LLM DECIDE → VALIDATE → COMMAND → OBSERVE`
+## POC evidence
 
-The LLM chooses structured intent. It must never execute arbitrary JavaScript in Foundry.
+[PROVEN_POC.md](PROVEN_POC.md) is authoritative for live evidence. No new POC/live combat tests were performed during this review.
 
-## Non-negotiable runtime
+Preserved proven facts:
 
-- Foundry VTT **12 Stable Build 343**
-- D&D5e **3.3.1**
-- Midi-QOL installed and proven
-- Foundry API Bridge installed and proven
-- **Never upgrade Foundry as part of this project.**
+- Local bidirectional Bridge transport, Actor/Item/effect/resource reads, combat context and scene-token resolution work.
+- Walls/LOS reads, token movement and wall avoidance work.
+- Movement budget reading from Actor walk speed and budget enforcement were proven in the POC scope.
+- Melee/ranged runtime choice from freshly observed positions passed; this does not prove that the old POC used an LLM.
+- Legacy single-target item activation through D&D5e + Midi resolves real attacks, including hit/miss behavior.
+- Fresh Foundry HP readback is authoritative; workflow is useful even when native rolls is empty.
+- next-turn works. Immediate movement response coordinates may be stale.
 
-## Important POC conclusions
+**Movement-exhaustion-across-multiple-NPC-turns is not independently proven.** Do not claim multi-turn movement continuation was proven or infer it from budget enforcement plus next-turn. Remaining turn allowance must not be equated with walk speed without verified state.
 
-Do not restart basic experiments unless there is a concrete bug:
+## Phase 1 — Minimal Vertical Slice
 
-- local Bridge read/write works;
-- Actor/Items/effects/combat context can be read;
-- walls/LOS can be read;
-- movement works;
-- wall avoidance works;
-- movement budgets work;
-- multi-turn continuation works;
-- `dnd5e/activate-item` + Midi-QOL performs real attacks;
-- HP mutation is authoritative in Foundry;
-- melee and ranged branches both passed when starting distance was unknown until runtime;
-- immediate move responses may contain stale coordinates, so always re-read state after writes;
-- Actor ID is stable, Token ID is scene-instance identity;
-- explicit `sceneId` should be used for writes.
+Scope:
 
-The random-distance POC was only proof that a decision can be made from live observed state. Do **not** hardcode tactical AI as `if distance > movement then bow` in the final product. StoryCore's LLM is the decision-maker; deterministic code only validates and executes legal intents.
+- One NPC at a time.
+- One active combat.
+- Linked Actor.
+- Unique token instance.
+- 1x1 square-grid walking.
+- No doors.
+- Legacy single-target melee/ranged weapons.
+- StoryCore LLM makes the actual action, target and movement decision.
+- D&D5e + Midi resolve the action.
+- Fresh OBSERVE after every write.
 
-## Current phase
+Explicitly deferred:
 
-**Architecture/source audit before production implementation.**
+- Unlinked/synthetic Actor support.
+- Duplicate Actor instances.
+- Spells.
+- AoE.
+- Reactions.
+- Bonus-action complexity.
+- Difficult terrain.
+- Flying/elevation.
+- Doors.
+- Multi-NPC tactics.
 
-Donor source is expected under local gitignored `_references/` using `scripts/01_FETCH_REFERENCES.ps1`.
+Detect and reject deferred cases; do not silently fall back to a different Actor, instance, weapon or tactic. Multi-turn movement exhaustion remains an evidence gap, not an added proven capability.
 
-Pinned donors:
+## Bounded decision protocol
 
-- Foundry API Bridge v8.11.2
-- Foundry AI Tool v0.18.0
-- FoundryAI 1.3.0
-- mookAI-12 1.0.5
-- lib-find-the-path-12 2.0.5
-- PF2e AI Combat Assistant 1.07
+Each LLM response within a decision is exactly one of:
 
-Codex must first create:
+- PLAN_REQUEST: one LLM-chosen goal, read-only, no arbitrary waypoints. Adapter validates scope and asks Bridge plan-token-path; returned PlanSummary goes back into the same bounded decision.
+- FINAL_INTENT: activate_item, move or end_turn. Movement references only an offered, still-valid planId.
 
-- `docs/SOURCE_AUDIT.md`
-- `docs/COMPATIBILITY_MATRIX.md`
-- `docs/REUSE_PLAN.md`
-- `docs/WIRE_CONTRACT.md`
-- `docs/COMBAT_INTENT_SCHEMA.md`
-- `docs/NORMALIZED_COMBAT_STATE.md`
+Per decision: at most two PLAN_REQUESTs, two repair responses, five LLM responses total, and one accepted FINAL_INTENT; stop at the 30-second decision deadline or earlier snapshot/plan expiry. Plan results do not reset counters or deadline. Stale source state closes the decision and invalidates its offers. A supervised Phase 1 invocation permits at most eight decision cycles and 120 seconds total, with no automatic restart or next-NPC handoff. Limits, response IDs and failure behavior are specified in WIRE_CONTRACT.md.
 
-Then stop and summarize the minimal production implementation plan.
+The LLM chooses tactics. Deterministic code plans geometry, validates and executes; it never substitutes hardcoded rules such as distance-too-far → bow. There is no unrestricted autonomous tool loop and no arbitrary JavaScript.
 
-## Rules for future work
+## Exact next step
 
-- Reuse Foundry API Bridge; do not build another generic command bus.
-- Reuse D&D5e/Midi; do not implement D&D combat rules in StoryCore.
-- Do not duplicate Compendium/effect engines.
-- Do not keep the temporary PowerShell pathfinder as final production architecture.
-- Prefer a thin Bridge/native path-preview extension over a second StoryCore A*.
-- Keep LLM input compact and normalized.
-- MIT donor code may be adapted with required notices; unclear-license source is architecture-only.
-- `storycore-combat-Mappers` is frozen/reference-only; do not start Phase 5.
+In a separately requested Phase 1 implementation pass:
 
-## End-of-step handoff discipline
+1. Define the strict decision contracts and minimal BridgeSession around the proven local transport, initially read-only.
+2. Build compact sensing/normalization for the linked, unique-token scope and connect StoryCore's actual LLM decision callback.
+3. Expose read-only plan-token-path using Bridge's existing GridPathfinder, shared with guarded movement; no second StoryCore A* or permanent PowerShell/BAT pathfinder.
+4. Add deterministic validation, serial native weapon activation and fresh observation. Address current-canvas scope and Midi workflow matching for the selected slice; reject synthetic/duplicate instances rather than implementing them.
+5. Complete one supported NPC vertical slice before expanding scope. Do not infer new live proof from design or static checks.
 
-After every completed step, update both:
+Existing Bridge gaps (scene scope on context/activation, global next-workflow capture, perception/budget completeness) remain documented risks. Proposed extensions are not already-installed capabilities.
 
-- `docs/PROJECT_STATE.md`
-- `docs/CHAT_HANDOFF.md`
+Do not build another command bus, rules engine, Compendium database, Midi replacement or effects engine. Combat Mappers is frozen/reference-only: no Phase 5 and no merge.
 
-Then commit and push. A future chat should never have to infer the current phase from conversation history alone.
+## Review boundary and handoff discipline
+
+This Phase 0 review is documentation only: no production implementation, donor modifications, new POC/live combat tests or Foundry upgrade. Commit and push this review as **Finalize Phase 0 review and Phase 1 scope**.
+
+Future steps must keep PROJECT_STATE.md and CHAT_HANDOFF.md aligned, distinguish static checks from live evidence, and update PROVEN_POC.md only when supported by independent evidence.
