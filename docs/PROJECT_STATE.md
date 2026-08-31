@@ -7,9 +7,9 @@ Branch: main
 ## Phase status
 
 **Phase 0 is COMPLETE.**
-**Pre-Phase-2 LAARU spell-compendium audit complete; awaiting review, no Phase 2 production implementation.**
+**Pre-Phase-2 LAARU spell-compendium and V12 spell execution donor audits COMPLETE; awaiting review, no Phase 2 production implementation.**
 **Current phase: Phase 1A live read -> normalization -> real Qwen tactical decision proven; full acceptance OPEN; execution DISABLED.**
-**Exact next stage: OPTIMIZATION / GENERALIZATION, beginning with a universal Action Normalizer audit. Record only; do not begin it in this checkpoint.**
+**Exact next step: review V12_SPELL_EXECUTION_DONOR_AUDIT.md, then separately authorize one isolated supervised Fire Bolt execution-seam experiment as specified in section 22. STOP until review/authorization; no implementation or live test in this checkpoint.**
 
 The source audit and six design documents are complete and are canonical inputs. Do not repeat the audit or replay CODEX_START_PROMPT.md as a new task. Phase 1A now has real supervised end-to-end evidence through a schema/reference-valid Qwen tactical response. Earlier read-contract and timeout failures remain historical evidence. The later live run preserved zero writes but exposed orchestration, action-catalogue and disposition issues; full Phase 1A acceptance is not closed.
 
@@ -184,7 +184,7 @@ Commit only the safe documentation changes as **Record Phase 1A live LLM checkpo
 
 PROJECT_STATE.md and CHAT_HANDOFF.md must stay aligned. Preserve the six completed audit documents as canonical inputs and PROVEN_POC.md as the authority for previous live evidence. Keep operator-supplied live evidence distinct from fixture tests and code inspection; do not invent additional live results.
 
-## Latest checkpoint — Pre-Phase-2 LAARU spell audit (2026-08-31)
+## Prior checkpoint — Pre-Phase-2 LAARU spell audit (2026-08-31)
 
 **Pre-Phase-2 LAARU spell-compendium audit complete. Phase 2 production implementation has not begun.** This additive checkpoint supersedes the earlier checkpoint's commit/stop instructions above; its Phase 1A evidence and open issues remain unchanged.
 
@@ -199,3 +199,24 @@ New completed static evidence: [LAARU_SPELL_COMPENDIUM_AUDIT.md](LAARU_SPELL_COM
 **Exact next step: review this audit, then separately authorize its proposed offline generic capability-coverage experiment. STOP until review.** The broader OPTIMIZATION / GENERALIZATION priority remains universal Action Normalization, not a Shortbow or spell-name handler. PLANNING_UNAVAILABLE orchestration loop, incomplete action catalogue and disposition semantics remain open and untouched; compact DecisionView is still proposed. No Phase 2 implementation, pathfinding, movement, item/Midi execution, turn advancement or Foundry/memory writes are authorized here.
 
 Commit this audit checkpoint as **Audit LAARU spell compendium**, push origin/main and stop. The earlier Phase 1A checkpoint's file list/commit instructions above describe that historical checkpoint, not this audit.
+
+## Latest checkpoint — V12 spell execution donor audit (2026-08-31)
+
+**V12 spell execution donor audit completed. No production spell execution implemented; no live spell cast performed. Phase 2 production implementation has not begun.** This checkpoint supersedes earlier commit/next-step instructions above. Phase 0 remains COMPLETE; Phase 1A live read -> normalization -> real Qwen tactical decision remains proven, full acceptance OPEN, execution DISABLED.
+
+New completed static evidence: [V12_SPELL_EXECUTION_DONOR_AUDIT.md](V12_SPELL_EXECUTION_DONOR_AUDIT.md), including the capability-confidence table, exact donor pins/licenses/source map, legacy API comparison, four spell-family analyses and future experiment. Starting project HEAD was `eaea65b4397533394477c73ca1044eeefaa543d9`, clean main. Existing LAARU audit/dataset and all six canonical Phase 0 documents remain unchanged inputs.
+
+- Inspected exact ThreeHats `a31e4cfb10eebc204b8cb8fa6139e5880728cb00`, dnd-ai-dm `7659a53e776471877a8671aedad41dab08de6b09`, AI-GM `34f681e4720bce836520c86aa75347af2a57f82a`, and canonical API Bridge v8.11.2 `f71ea11b708d78c85c979ddae04d371be66e766e`. New donors are ignored local references, unchanged after acquisition; the two AI donors have no verified reusable project license and remain architecture-only.
+- Inspected installed static D&D5e **3.3.1**, Midi-QOL **11.5.5** and DAE **11.3.64** source, with source hashes recorded. No live world/settings or module code was executed. Foundry remains **12.343**, never upgraded. Disk versions do not prove active automation settings.
+- Legacy spells already share Bridge's generic Actor-owned Item.use seam with the proven Scimitar. No new spell command or replacement transport is justified. Native D&D5e owns use configuration/resources/upcasting/concentration/template creation; Midi orchestrates configured attacks/saves/damage and Midi/DAE configured effects. INVOKABLE does not mean FULLY AUTOMATED; no live spell success is claimed.
+- Exact gaps: Bridge spellLevel uses activity-style spell.slot instead of legacy slotLevel; no-template config is also activity-style; scene/acting-token scope and target restoration are absent; empty targets retain old state; template preview patch can leak on cancellation; RollComplete capture is unscoped and may accept an unrelated workflow. Midi ordinary workflow ID is Item UUID, not unique per invocation. None was fixed here.
+- LAARU Fire Bolt is the smallest attack-family candidate. Hold Person has no embedded effect proving paralysis; Shield has a +5 AC effect but trigger/expiry automation is unproven; Fireball native template placement exists but current Bridge placement is not proven safe/unattended. Save-success multipliers and actual Actor-owned automation must be verified, not inferred from spell names.
+- Future design recommendation: generic live mechanical facts plus a bounded sanitized Actor-owned description, optionally cached semantic summaries; no handcrafted per-spell rules catalogue. LLM chooses tactics; validator resolves fresh references; native D&D5e/Midi resolve. No semantic-card/description pipeline or resolver was built.
+
+**Exact next step: review this audit, then separately authorize one isolated supervised Fire Bolt execution-seam test per section 22. STOP until review/authorization.** Use one linked mage/unique token, one actual owned legacy spell Item and one validated target; read scope/resources/HP, invoke the existing Bridge once, correlate the correct Midi workflow, fresh OBSERVE, and restore targets safely. No activity/upcast/template parameter, no manual roll/HP/slot update, no automatic retry. If existing supervised tooling cannot safely isolate/correlate the cast, stop for separately authorized test instrumentation. This is a proposal only; no Foundry test, LLM call or write occurred here.
+
+Broader OPTIMIZATION / GENERALIZATION work remains pending: universal Action Normalization (not a Shortbow-name fix), disposition semantics, compact DecisionView and the PLANNING_UNAVAILABLE orchestration loop. Those three acceptance issues remain open. The 60-second supervised decision/snapshot lifetime, bounded-call protections and current linked-Actor attestation limitations are unchanged. No production normalizer/runner/intent schema, Bridge fork, pathfinding, movement, Midi execution or turn advancement was added. PROVEN_POC.md and historical live evidence are untouched.
+
+Verification: npm run check passed (63/63 tests, typecheck and build); git diff --check passed. Audit has all 22 requested sections, checkpoint/handoff bodies match, and targeted credential/diff review found no secrets. All 7,505 LAARU donor file paths/hashes and seven recorded installed-source hashes are unchanged; four pinned Git donor worktrees are clean. This checkpoint changes only V12_SPELL_EXECUTION_DONOR_AUDIT.md, PROJECT_STATE.md and CHAT_HANDOFF.md; no production code, donor code, runtime settings or logs are included. Passing existing tests is not a live spell test or closure of Phase 1A acceptance.
+
+Commit this documentation checkpoint as **Audit V12 spell execution architecture**, push origin/main and STOP. Do not begin implementation or live testing until reviewed.
