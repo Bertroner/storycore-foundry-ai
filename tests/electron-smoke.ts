@@ -32,8 +32,7 @@ try {
     async decide(request) {
       modelCalls++; modelTargets = request.state.nearby.map(t => t.tokenId);
       return { text: JSON.stringify({ schemaVersion: "1.0", decisionId: request.decisionId, snapshotId: request.state.snapshotId,
-        stepId: request.stepId, type: "FINAL_INTENT", intent: { schemaVersion: "1.0", decisionId: request.decisionId,
-          snapshotId: request.state.snapshotId, kind: "end_turn", action: null, movement: null } }),
+        stepId: request.stepId, type: "FINAL_INTENT", intent: { kind: "end_turn" } }),
         metadata: { provider: "TEST_DOUBLE", model: "TEST_DOUBLE", returnedModel: null, temperature: .25, maxOutputTokens: 700,
           format: "json", latencyMs: 1, requestBytes: 1, approximateTokens: 1,
           decisionId: request.decisionId, stepId: request.stepId, snapshotId: request.state.snapshotId } };
@@ -98,12 +97,22 @@ try {
   console.log("SMOKE_STAGE_SAVE_FAILURE_AND_RELOAD_PASSED");
   assert.equal(runtime.bridge.readsSent, 0);
   // Fake Foundry on the isolated ephemeral listener: real transport, no live Foundry/model call.
-  const fixture = makeBridge(); let nonReads = 0;
+  const fixture = makeBridge(); let fixtureWrites = 0;
   const client = new WebSocket("ws://127.0.0.1:" + (runtime.app.address() as { port: number }).port + "/bridge?apiKey=offline-replacement-bridge-key");
   client.on("message", bytes => {
-    const frame = JSON.parse(bytes.toString()) as { id: string; type: ReadCommand };
-    if (!READ_COMMANDS.includes(frame.type)) { nonReads++; return; }
-    client.send(JSON.stringify({ id: frame.id, success: true, data: fixture.values[frame.type] }));
+const frame = JSON.parse(bytes.toString()) as { id: string; type: string };
+    if (READ_COMMANDS.includes(frame.type)) {
+      client.send(JSON.stringify({ id: frame.id, success: true, data: fixture.values[frame.type as ReadCommand] }));
+      return;
+    }
+    fixtureWrites++;
+    if (frame.type === "next-turn") {
+      const combat = fixture.values["get-combat-state"] as { turn: number; current: unknown; combatants: unknown[] };
+      combat.turn = 1; combat.current = combat.combatants[1];
+      client.send(JSON.stringify({ id: frame.id, success: true, data: { turn: 1 } }));
+      return;
+    }
+    client.send(JSON.stringify({ id: frame.id, success: false, error: "UNEXPECTED_TEST_COMMAND" }));
   });
   await once(client, "open");
   const detectedUi = await window.webContents.executeJavaScript(`(async () => {
@@ -128,21 +137,21 @@ try {
     document.getElementById("run").click();
     for (let attempt = 0; attempt < 150; attempt++) {
       await new Promise(resolve => setTimeout(resolve, 50));
-      if (document.getElementById("result").textContent.includes("DRY-RUN VALIDATED INTENT")) break;
+      if (document.getElementById("result").textContent.includes("STATUS: TURN_ADVANCED")) break;
     }
     return { result: document.getElementById("result").textContent, attested: attest.checked };
   })()`);
-  assert.match(runUi.result, /DRY-RUN VALIDATED INTENT/); assert.equal(runUi.attested, false);
-  assert.equal(modelCalls, 1); assert.deepEqual(modelTargets, []); assert.equal(nonReads, 0);
+  assert.match(runUi.result, /STATUS: TURN_ADVANCED/); assert.equal(runUi.attested, false);
+  assert.equal(modelCalls, 1); assert.deepEqual(modelTargets, []); assert.equal(fixtureWrites, 1);
   assert.ok(runtime.bridge.readsSent > 0);
   assert.ok(!runUi.result.includes("RAW_"));
   console.log("SMOKE_STAGE_DETECT_DESELECT_RUN_PASSED");
   const clear = await window.webContents.executeJavaScript("window.storycore.clearOpenRouterKey()");
   assert.equal(clear.ok, true); assert.equal(store.credentials().apiKey, ""); assert.equal(store.credentials().bridgeKey, "offline-replacement-bridge-key");
-  assert.equal(nonReads, 0);
+  assert.equal(fixtureWrites, 1);
   const artifact = resolve("tmp", "desktop-smoke.png"); await mkdir(resolve("tmp"), { recursive: true });
   await writeFile(artifact, (await window.webContents.capturePage()).toPNG());
-  console.log("DESKTOP_SMOKE_PASSED: local renderer, real IPC, sandbox, DPAPI, masked status, network denial, explicit clear, detect/deselect/run with fixture-only reads, zero Bridge writes.");
+  console.log("DESKTOP_SMOKE_PASSED: local renderer, real IPC, sandbox, DPAPI, masked status, network denial, explicit clear, and one fixture-only supervised next-turn command with fresh readback.");
 } catch (error) {
   console.error("DESKTOP_SMOKE_FAILED: " + safeError(error));
   // Assertions contain only fixed fixture/non-secret values; never emit error objects or messages.

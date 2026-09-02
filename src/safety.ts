@@ -43,6 +43,24 @@ export function ensureNoSecrets(text: string, secrets: string[]) {
 export function plain(value: unknown, cap = 80): string {
   return typeof value === "string" ? value.replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").slice(0, cap) : "";
 }
+export function sanitizeDescriptionHint(value: unknown, cap = 240): string | null {
+  if (typeof value !== "string" || !value) return null;
+  const text = value.slice(0, 16384)
+    .replace(/<(script|style|template|form|button|input|select|option|textarea)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
+    .replace(/<\s*br\s*\/?\s*>|<\s*\/\s*(?:p|div|li|h[1-6])\s*>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\[\[[\s\S]*?\]\]/g, " ")
+    .replace(/@[A-Za-z][A-Za-z0-9.-]*\[[^\]]*\](?:\{([^}]*)\})?/g, " $1 ")
+    .replace(/https?:\/\/\S+/gi, " ")
+    .replace(/&(?:lt|gt|#0*60|#x0*3c|#0*62|#x0*3e);/gi, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;|&#34;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ").trim().slice(0, cap);
+  return text || null;
+}
 export function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

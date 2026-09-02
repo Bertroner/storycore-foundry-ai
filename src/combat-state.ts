@@ -41,6 +41,8 @@ export type ActionCard = {
   spell: { level: number | null; prepared: boolean | null } | null;
   resourceCosts: { resourceId: ID; amount: number | null; source: FactSource }[];
   summary: ShortText;
+  descriptionHint: ShortText | null;
+  canPlanApproach: boolean;
   eligibleTargets: TargetRef[];
 };
 export type PlanSummary = {
@@ -117,7 +119,8 @@ export type CombatStateV1 = {
   nearby: {
     actorId: ID; tokenId: ID; combatantId: ID | null;
     name: ShortText;
-    disposition: "hostile" | "neutral" | "friendly" | "secret" | "unknown";
+    relationToSelf: "enemy";
+    targetAuthorized: true;
     position: GridPoint;
     distance: number | null; units: string; distanceSource: FactSource;
     wallLos: boolean | null;

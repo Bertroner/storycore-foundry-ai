@@ -1,26 +1,22 @@
 # Normalized combat state v1
 
-**Canonical compact decision DTO; conservative Phase 1A subset implemented.** Raw Bridge responses remain adapter-internal. StoryCore owns memory/personality/relationships; Foundry owns live state, and D&D5e/Midi own rules. This schema is input to [COMBAT_INTENT_SCHEMA.md](COMBAT_INTENT_SCHEMA.md), not a duplicate Actor database.
+**Canonical compact decision DTO; supervised execution subset implemented.** Raw Bridge responses remain adapter-internal. StoryCore owns memory, personality and relationships; Foundry owns live state; D&D5e and Midi-QOL own rule resolution.
 
-Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+The current supervised scope is one NPC in one active combat, a linked Actor with one unique 1x1 token, square-grid walking without doors or terrain, and generic legacy single-target/self weapon, spell, feature and consumable Items. One-cost native action and bonus-action activations are projected structurally. Legacy cantrips and innate/at-will spells are supported; prepared levelled spells, activities, AoE/templates, reactions, difficult terrain, flying/elevation, duplicate/unlinked Actor instances and multi-NPC tactics remain excluded.
 
-## Phase 1A implementation status
+## Current turn-budget semantics
 
-src/combat-state.ts preserves the normative type below; CombatNormalizer implements a conservative subset. actorLink/effectiveActorUuid, remaining budgets and module versions stay unknown when unavailable; scopeVerified=false, effectsComplete=false and automaticExecution=false. The current Bridge's true LOS can be a backend fallback, so true becomes wallLos:null; a reported false remains false. Distances are bridge-approximation. Empty legacy weapon target/range/uses metadata stays null. Melee/ranged modality is carried by the short generated summary, not raw item description. Spell slots and plans are empty in this checkpoint.
+After explicit operator authorization, DesktopService creates an exclusive process-local turn lease. It initializes movementRemaining from native walking speed, actionAvailable from usable offered action Items, and bonusActionAvailable from usable offered bonus-action Items. reactionAvailable stays null. The source is turn-lease because the Bridge does not expose native spent-action history. The operator must confirm that this NPC has not already spent these resources manually during the current turn.
 
-Operator-supplied per-run fixture identifies verified linked Actors, the viewed single combat, normal walking/no terrain and positively perceived token IDs. It cannot establish a native capability; unlinked support is not claimed. Hidden/secret targets remain rejected. Oversized supported catalogues stop; unsupported item types are omitted with counts. Raw dumps, effects changes, HTML, flags and maps remain internal.
+After every dispatched command the adapter performs fresh observation and updates the lease. Observed path cost reduces movement; at most two movement writes are allowed. A successful or conservatively uncertain Item path consumes its matching action or bonus-action slot. Spent-slot ActionCards become unavailable in later DecisionViews. The lease is keyed to combat, round, turn and combatant and cannot transfer to another turn.
 
-The supervised Phase 1A request explicitly permits discussing this degraded subset with quality.completeForDecision=false and annotated unknowns. This is a read-only testing allowance, not permission to execute or to apply the future automatic-decision completeness gate loosely. Full native legality remains unresolved; no writes exist. See PHASE1A_TESTING.md for exact attestations, omissions, caps and evidence. The future complete execution contract below is unchanged.
+## Bounded decision and turn episode
 
-## Decision input and read-only planning feedback
+Each model decision remains bounded to two PLAN_REQUEST attempts, two repairs, five responses and the shared 60-second snapshot lifetime. Before a real PlanSummary exists, the provider schema excludes move. PLAN_NOT_OFFERED and PLAN_NOT_NEEDED repairs allow only activate_item or end_turn. A movement FINAL_INTENT can reference only an offered planId.
 
-Each LLM response is exactly PLAN_REQUEST or FINAL_INTENT as defined by COMBAT_INTENT_SCHEMA.md. The initial state may have an empty movement.plans array; the adapter does not have to preselect tactical goals. The LLM chooses one PlanGoalV1, the adapter requests Bridge plan-token-path, and the resulting PlanSummary is supplied back into the **same bounded decision**, with the same live snapshot and reduced limits.
+One supervised Run contains at most five fresh decision cycles. After a successful move or Item activation, runtime reads Foundry again and asks the LLM what to do with the remaining lease. The LLM chooses movement, action, bonus action and end_turn; deterministic code only validates budgets, IDs, range and geometry. The episode stops on uncertainty, stale scope, limits, cancellation or a confirmed next-turn readback. It never retries a partial or uncertain mutation.
 
-Per decision: at most two PLAN_REQUESTs, two repair responses, five LLM responses total, and one accepted FINAL_INTENT; stop at the 30-second decision deadline or earlier snapshot/plan expiry. Plan results do not reset counters or deadline. Stale source state closes the decision and invalidates its offers. A supervised Phase 1 invocation permits at most eight decision cycles and 120 seconds total, with no automatic restart or next-NPC handoff.
-
-The trusted DecisionRequestV1 carries stepId, counters, deadline and at most two planFeedback entries (WIRE_CONTRACT.md). Each response and preview attempt consumes its respective slot, including failure; feedback never resets a deadline/counter. FINAL_INTENT selects only a ready, non-null, unexpired planId explicitly offered for its decision/snapshot. A preview is neither movement authorization nor commitment to the associated weapon.
-
-PlanGoalV1 is LLM-facing. Goal below is an adapter-expanded display/geometry description: for approach, use the selected actionId's verified native range and scene units; for position/retreat, use the one LLM-chosen grid cell. The LLM cannot set budget, cost, waypoints or arbitrary Bridge params. Deterministic code finds geometry, not a substitute tactic.
+The adapter computes only a bounded endpoint from the LLM goal and available movement. Bridge move-token remains authoritative for wall-aware routing during execution, and fresh token coordinates/path cost are authoritative afterward. Raw Actor dumps, flags, HTML and secrets never enter this DTO.
 
 ## Sensor sources and trust
 
@@ -86,6 +82,8 @@ type ActionCard = {
   spell: { level: number | null; prepared: boolean | null } | null;
   resourceCosts: { resourceId: ID; amount: number | null; source: FactSource }[];
   summary: ShortText;
+  descriptionHint: ShortText | null;
+  canPlanApproach: boolean;
   eligibleTargets: TargetRef[];
 };
 type PlanSummary = {
@@ -162,7 +160,8 @@ type CombatStateV1 = {
   nearby: {
     actorId: ID; tokenId: ID; combatantId: ID | null;
     name: ShortText;
-    disposition: "hostile" | "neutral" | "friendly" | "secret" | "unknown";
+    relationToSelf: "enemy";
+    targetAuthorized: true;
     position: GridPoint;
     distance: number | null; units: string; distanceSource: FactSource;
     wallLos: boolean | null;
@@ -237,7 +236,7 @@ This example is the state **after PLAN_REQUEST step-1 feedback** in decision-17;
   },
   "budgets": {
     "movementRemaining": 30, "units": "ft", "actionAvailable": true,
-    "bonusActionAvailable": null, "reactionAvailable": null,
+    "bonusActionAvailable": false, "reactionAvailable": null,
     "source": "turn-lease", "leaseId": "lease-turn-2-1"
   },
   "actions": [
@@ -251,13 +250,16 @@ This example is the state **after PLAN_REQUEST step-1 feedback** in decision-17;
       "target": { "kind": "creature", "count": 1 }, "damageTypes": ["slashing"],
       "saveAbility": null, "spell": null, "resourceCosts": [],
       "summary": "Legacy single-target melee item; native pipeline resolves use.",
+      "descriptionHint": "A curved blade used to make a melee weapon attack.",
+      "canPlanApproach": true,
       "eligibleTargets": [{ "actorId": "actor-hero", "combatantId": "combatant-hero" }]
     }
   ],
   "nearby": [
     {
       "actorId": "actor-hero", "tokenId": "token-hero", "combatantId": "combatant-hero",
-      "name": "Intruder", "disposition": "friendly", "position": { "x": 6, "y": 2 },
+      "name": "Intruder", "relationToSelf": "enemy", "targetAuthorized": true,
+      "position": { "x": 6, "y": 2 },
       "distance": 20, "units": "ft", "distanceSource": "native", "wallLos": true,
       "perceived": true, "perceptionSource": "verified-fixture", "conditions": [], "health": "unknown"
     }
@@ -286,12 +288,12 @@ This example is the state **after PLAN_REQUEST step-1 feedback** in decision-17;
 }
 ~~~
 
-Foundry disposition friendly in this example is a token setting relative to the table, not a promise that the goblin considers that Actor an ally. StoryCore relationship/context determines intent; target eligibility reflects supported legality, not tactical ranking.
+Foundry disposition remains in read-only detection diagnostics and is deliberately omitted from the LLM combat state. Every nearby entry in the current supervised fixture is explicitly selected by the operator as an enemy the NPC may attack. StoryCore relationship/context will replace this temporary per-run attestation; target eligibility is a closed authorization set, not tactical ranking.
 
 ## Compactness and refresh
 
 - Hard maximum 24 KiB serialized UTF-8 for the state; target roughly 2–4k model tokens in typical encounters. Byte cap is authoritative, token count is model-dependent.
-- At most 24 action cards, 12 nearby perceived actors, 2 plan summaries per decision, 16 effects, 16 resources and 10 spell-slot entries. Summary/description <=240 characters, names <=80 in emitted data; at most 8 blockers/cost entries per action. Bound strings/arrays before calling LLM.
+- At most 24 action cards, 12 nearby perceived actors, 2 plan summaries per decision, 16 effects, 16 resources and 10 spell-slot entries. Summary and descriptionHint are each <=240 characters, names <=80 in emitted data; at most 8 blockers/cost entries per action. descriptionHint is derived from the current Actor-owned Item, strips HTML/scripts/forms/macros/inline rolls/URLs and is untrusted tactical context, never rules authority. Bound strings/arrays before calling LLM.
 - Never silently discard a legal choice as a tactical optimization. If caps omit relevant actions/targets or required evidence, set completeForDecision=false and pause for supervised input refinement before another decision. There is no third LLM response branch or unrestricted paging tool. Refined catalogue gets a new snapshotId and decisionId within the invocation limit; do not select a weapon as an adapter fallback.
 - Remove redundant descriptions first, not identity/current turn/budget/unknown flags. Unsupported cards may be short blocked summaries. Do not replace missing data with guesses to fit the budget.
 - Snapshot/plan expiry is at most 30 seconds and no later than the current decision deadline; preview feedback never extends it. Expiry is only a maximum age; revalidate live facts even within that interval. A long LLM call requires refresh/new decision if stale.

@@ -25,7 +25,7 @@ export async function createDesktopWindow(service: DesktopService, root: string,
   });
   isolated.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !assets.has(details.url) }));
   const window = new BrowserWindow({ width: 1120, height: 900, minWidth: 820, minHeight: 650, show: false,
-    title: "StoryCore Foundry AI - Phase 1A", autoHideMenuBar: true,
+    title: "StoryCore Foundry AI - Supervised Turn", autoHideMenuBar: true,
     webPreferences: { preload: join(root, "dist/desktop/preload.cjs"), session: isolated,
       contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true,
       allowRunningInsecureContent: false, webviewTag: false, spellcheck: false, devTools: false } });

@@ -20,8 +20,7 @@ const request = (turn: DetectedTurn, selected = turn.candidates.filter(c => c.el
   mind: { personality: "Cautious creature that values survival.", motivation: "Defend its position and survive.", relevantMemory: [] },
 });
 const endTurn = (input: DecisionRequestV1) => ({ text: JSON.stringify({ schemaVersion: "1.0", decisionId: input.decisionId,
-  snapshotId: input.state.snapshotId, stepId: input.stepId, type: "FINAL_INTENT", intent: { schemaVersion: "1.0",
-    decisionId: input.decisionId, snapshotId: input.state.snapshotId, kind: "end_turn", action: null, movement: null } }),
+  snapshotId: input.state.snapshotId, stepId: input.stepId, type: "FINAL_INTENT", intent: { kind: "end_turn" } }),
   metadata: { provider: "TEST_DOUBLE", model: "TEST_DOUBLE", returnedModel: null, temperature: .25, maxOutputTokens: 700,
     format: "json", latencyMs: 1, requestBytes: 1, approximateTokens: 1,
     decisionId: input.decisionId, stepId: input.stepId, snapshotId: input.state.snapshotId } });
@@ -86,14 +85,14 @@ test("hidden, secret, missing-context, blocked-LOS and duplicate candidates cann
   }
 });
 
-test("deselection builds only confirmed internal IDs and factual hostile relationships", async () => {
-  const mock = makeBridge(); record(mock.values["get-scene-tokens"]).tokens[1].disposition = -1;
-  const detector = new TurnDetector(mock.bridge); const turn = await detector.detect();
+test("selection authorizes only chosen attack targets independent of Foundry disposition", async () => {
+  const mock = makeBridge(); const detector = new TurnDetector(mock.bridge); const turn = await detector.detect();
+  assert.equal(turn.candidates[0]!.disposition, "friendly");
   const full = detector.prepare(request(turn));
   assert.deepEqual(full.fixture, { sceneId: "scene", combatId: "combat", actorId: "npc", tokenId: "npc-token",
     linkedActorIds: ["npc", "hero"], perceivedTokenIds: ["hero-token"], attestSingleActiveCombat: true,
     attestViewedCombatScene: true, attestNormalWalkingNoTerrain: true });
-  assert.deepEqual(full.mind.relationships, [{ actorId: "hero", summary: "Hostile combatant" }]);
+  assert.deepEqual(full.mind.relationships, [{ actorId: "hero", summary: "Enemy selected for this supervised run" }]);
   const none = detector.prepare(request(turn, []));
   assert.deepEqual(none.fixture.linkedActorIds, ["npc"]); assert.deepEqual(none.fixture.perceivedTokenIds, []);
   assert.deepEqual(none.mind.relationships, []); assert.equal(none.mind.actorId, "npc");
@@ -137,6 +136,8 @@ test("normal renderer needs no editable Foundry IDs and regenerates scope in mai
     assert.ok(!html.includes('id="' + id + '"')); assert.ok(!renderer.includes('input("' + id + '")'));
   }
   assert.ok(html.includes("Detect current Foundry turn")); assert.ok(html.includes("Advanced diagnostics"));
+  assert.ok(html.includes("Allowed attack targets for this NPC turn"));
+  assert.ok(html.includes("Foundry disposition is shown only as diagnostic data"));
   assert.ok(html.includes('<pre id="turnDiagnostics">')); assert.ok(!html.includes('textarea id="relationships"'));
 });
 
@@ -163,4 +164,56 @@ test("trusted Detect and Run IPC use confirmed scope, sanitized DTO and no write
   const all = JSON.stringify([result, service.status(), logs]);
   for (const forbidden of ["RAW_", "test-only-secret", "HIDDEN_SENTINEL"]) assert.ok(!all.includes(forbidden));
   assert.ok(mock.calls.every(c => READ_COMMANDS.includes(c.type)));
+});
+
+test("desktop turn lease runs action then bonus action then LLM end_turn with fresh budgets", async t => {
+  const directory = await mkdtemp(join(tmpdir(), "storycore-turn-lease-"));
+  const store = new SettingsStore(directory, { async protect(s) { return s; }, async unprotect(s) { return s; } });
+  await store.save({ provider: "openrouter", model: "TEST_DOUBLE", temperature: .25, apiKey: "test-only-secret" });
+  const mock = makeBridge();
+  record(mock.values["get-actor"]).items.push({ id: "bonus", name: "Nimble Option", type: "feat", system: {
+    actionType: "util", activation: { type: "bonus", cost: 1 }, activities: {}, target: { type: "self", value: 1 }
+  } });
+  const bridge = new BridgeSession(); bridge.read = mock.bridge.read;
+  const writes: string[] = [];
+  bridge.write = async (type, params) => {
+    bridge.writesSent++; writes.push(type);
+    if (type === "dnd5e/activate-item") return { itemId: params.itemId,
+      itemName: params.itemId === "bonus" ? "Nimble Option" : "Scimitar", itemType: params.itemId === "bonus" ? "feat" : "weapon",
+      activated: true, targetsSet: params.itemId === "bonus" ? 0 : 1,
+      workflow: { attackTotal: 16, damageTotal: 4, isCritical: false, isFumble: false,
+        hitTargetIds: params.itemId === "bonus" ? [] : ["hero-token"], saveTargetIds: [], failedSaveTargetIds: [] } };
+    if (type === "next-turn") {
+      record(mock.values["get-combat-state"]).turn = 1;
+      record(mock.values["get-combat-state"]).current = record(mock.values["get-combat-state"]).combatants[1];
+      return { turn: 1 };
+    }
+    return { cleared: true };
+  };
+  const seen: DecisionRequestV1[] = [];
+  const provider = { async testConnection() { throw new Error("unused"); }, async decide(input: DecisionRequestV1) {
+    seen.push(structuredClone(input));
+    const base = { schemaVersion: "1.0", decisionId: input.decisionId, snapshotId: input.state.snapshotId,
+      stepId: input.stepId, type: "FINAL_INTENT" };
+    const intent = input.state.budgets.actionAvailable ? { kind: "activate_item", action: {
+      actionId: "item:sword", itemId: "sword", target: { actorId: "hero", combatantId: "hero-combatant" } } } :
+      input.state.budgets.bonusActionAvailable ? { kind: "activate_item", action: {
+        actionId: "item:bonus", itemId: "bonus", target: null } } : { kind: "end_turn" };
+    return { text: JSON.stringify({ ...base, intent }), metadata: { provider: "TEST_DOUBLE", model: "TEST_DOUBLE",
+      returnedModel: null, temperature: .25, maxOutputTokens: 700, format: "json", latencyMs: 1,
+      requestBytes: 1, approximateTokens: 1, decisionId: input.decisionId, stepId: input.stepId, snapshotId: input.state.snapshotId } };
+  } };
+  const service = new DesktopService(store, bridge, provider, () => {});
+  t.after(async () => { await service.close(); await rm(directory, { recursive: true, force: true }); });
+  const turn = await service.detectTurn();
+  const result = await service.runDecision(request(turn));
+  assert.equal(result.status, "TURN_ADVANCED");
+  assert.equal(result.writesDispatched, 7);
+  assert.deepEqual(writes, ["clear-targets", "dnd5e/activate-item", "clear-targets",
+    "clear-targets", "dnd5e/activate-item", "clear-targets", "next-turn"]);
+  assert.equal(seen.length, 3);
+  assert.deepEqual(seen.map(value => [value.state.budgets.actionAvailable, value.state.budgets.bonusActionAvailable]),
+    [[true, true], [false, true], [false, false]]);
+  assert.deepEqual(result.outcomes.map(value => value.status), ["ITEM_ACTIVATED", "ITEM_ACTIVATED", "TURN_ADVANCED"]);
+  assert.ok(result.log.some(value => value.status === "TURN_BUDGET"));
 });

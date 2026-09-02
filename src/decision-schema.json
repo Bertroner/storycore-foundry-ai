@@ -104,7 +104,14 @@
           "$ref": "#/$defs/id"
         },
         "target": {
-          "$ref": "#/$defs/target"
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/target"
+            }
+          ]
         }
       }
     },
@@ -129,70 +136,37 @@
       }
     },
     "finalIntent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "decisionId",
-        "snapshotId",
-        "kind",
-        "action",
-        "movement"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": "1.0"
-        },
-        "decisionId": {
-          "$ref": "#/$defs/id"
-        },
-        "snapshotId": {
-          "$ref": "#/$defs/id"
-        },
-        "kind": {
-          "enum": [
-            "activate_item",
-            "move",
-            "end_turn"
-          ]
-        },
-        "action": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/itemAction"
-            }
-          ]
-        },
-        "movement": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/movement"
-            }
-          ]
-        },
-        "reason": {
-          "type": "string",
-          "maxLength": 240
-        }
-      },
       "oneOf": [
         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action"
+          ],
           "properties": {
             "kind": {
               "const": "activate_item"
             },
             "action": {
               "$ref": "#/$defs/itemAction"
+            },
+            "movement": {
+              "type": "null"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 240
             }
           }
         },
         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "movement"
+          ],
           "properties": {
             "kind": {
               "const": "move"
@@ -202,10 +176,19 @@
             },
             "movement": {
               "$ref": "#/$defs/movement"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 240
             }
           }
         },
         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
           "properties": {
             "kind": {
               "const": "end_turn"
@@ -215,6 +198,10 @@
             },
             "movement": {
               "type": "null"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 240
             }
           }
         }

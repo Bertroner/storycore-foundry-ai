@@ -95,3 +95,13 @@ Only add the StoryCore-specific adapter, normalizer, validator, decision protoco
 The old StoryCore Combat Mappers project is frozen/reference material only.
 Do not begin its Phase 5.
 Do not merge it into this project.
+
+## Development change journal
+
+- Before every development or debugging change, read PROJECT_CHANGE_JOURNAL.txt.
+- Record the task baseline before editing and append every meaningful attempt,
+  including failed, reverted, blocked, and successful variants.
+- After work, record affected components, verification results, produced
+  artifacts, commit/push state, and the next unresolved issue.
+- Never place credentials, API keys, Bridge keys, Authorization headers, DPAPI
+  contents, or other secrets in the journal.

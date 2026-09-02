@@ -2,9 +2,9 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
-<title>StoryCore Foundry AI - Phase 1A</title><link rel="stylesheet" href="style.css"></head>
+<title>StoryCore Foundry AI - Supervised Turn</title><link rel="stylesheet" href="style.css"></head>
 <body>
-<header><h1>StoryCore Foundry AI <span>Phase 1A / Turn detection</span></h1><p>READ → NORMALIZE → REAL LLM → VALIDATE <strong>Execution DISABLED</strong></p></header>
+<header><h1>StoryCore Foundry AI <span>Supervised token control</span></h1><p>READ → NORMALIZE → LLM → VALIDATE → COMMAND → OBSERVE <strong>Execution ENABLED (supervised)</strong></p></header>
 <section aria-label="Connection"><h2>Connection</h2><p id="status" role="status">Connecting to desktop runtime...</p></section>
 <details class="settings-panel"><summary>Connection settings (keys and model)</summary>
 <div class="columns">
@@ -38,11 +38,11 @@
 <div id="turnSummary" hidden>
 <dl class="turn-facts"><dt>Scene</dt><dd id="sceneName"></dd><dt>Combat</dt><dd id="combatName"></dd>
 <dt>Current NPC</dt><dd id="npcName"></dd><dt>HP</dt><dd id="npcHp"></dd><dt>Token</dt><dd id="tokenName"></dd></dl>
-<h3>Detected combatants</h3><div id="targets"></div>
-<p class="hint">Only current combat participants are considered. Reported LOS does not prove NPC perception. Excluded participants never enter the model context.</p>
+<h3>Allowed attack targets for this NPC turn</h3><div id="targets"></div>
+<p class="hint">Checked participants are explicitly treated as enemies for this supervised run. Foundry disposition is shown only as diagnostic data and does not define the NPC relationship. Unchecked or excluded participants never enter the model context.</p>
 <details><summary>Advanced diagnostics (read-only IDs)</summary><pre id="turnDiagnostics"></pre></details>
 </div>
-<label class="attestation"><input type="checkbox" id="attest" disabled> I confirm the selected targets are actually perceived by this NPC and this is the intended linked-Actor test scene: one active combat, GM viewing its active scene, normal walking with no difficult terrain.</label>
+<label class="attestation"><input type="checkbox" id="attest" disabled> I authorize one bounded supervised NPC turn on this scene. The NPC has not already spent movement, its action, or its bonus action manually this turn. The selected participants are perceived enemies the NPC may attack, combat is current, and normal walking has no difficult terrain. Foundry writes may move the token, activate action and bonus-action Items, and advance the turn.</label>
 <p class="hint">Actor linking and perception are not automatically proven. Confirmation resets after Detect, Refresh, target changes and every run.</p>
 </section>
 <section><h2>Development NPC mind fixture</h2>
@@ -51,11 +51,11 @@
 <label>Personality<textarea id="personality" rows="2">Cautious creature that values survival.</textarea></label>
 <label>Motivation<textarea id="motivation" rows="2">Defend its position and survive.</textarea></label>
 <label>Relevant memory JSON<textarea id="memory" rows="2">[]</textarea></label>
-<div><p class="hint">Relationships generated from selected hostile combatants</p><pre id="relationships">No selected hostile combatants.</pre></div>
+<div><p class="hint">Per-run enemy relationships generated from allowed attack targets</p><pre id="relationships">No attack targets selected.</pre></div>
 </div>
-<button id="run" type="button" disabled>Run one real LLM dry-run</button><button id="cancel" type="button" class="secondary">Cancel</button>
-<p class="hint">Rechecks the detected scope before the model call. Execution DISABLED.</p>
+<button id="run" type="button" disabled>Run one supervised AI turn</button><button id="cancel" type="button" class="secondary">Cancel</button>
+<p class="hint">Rechecks scope after every command. At most two movement writes, one action Item, one bonus-action Item, and one turn advance; no retries after uncertain writes.</p>
 </section>
-<section><h2>Result</h2><pre id="result" aria-live="polite">No decision run yet.</pre></section>
+<section><h2>Process log</h2><pre id="result" aria-live="polite">No supervised turn run yet.</pre><details><summary>Advanced result data</summary><pre id="rawResult">No result yet.</pre></details></section>
 <script type="module" src="renderer.js"></script>
 </body></html>

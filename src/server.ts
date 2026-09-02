@@ -15,7 +15,7 @@ export async function createApp(settings: SettingsStore, port = 3210, bridge = n
     const health = allowed && req.method === "GET" && req.url === "/health";
     res.writeHead(health ? 200 : allowed ? 404 : 400, {
       "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
-    res.end(JSON.stringify(health ? { status: "ok", execution: "DISABLED" } : { error: "HTTP_UI_DISABLED" }));
+    res.end(JSON.stringify(health ? { status: "ok", execution: "ENABLED_SUPERVISED" } : { error: "HTTP_UI_DISABLED" }));
     req.resume();
   });
   app.requestTimeout = 10000; app.headersTimeout = 10000;

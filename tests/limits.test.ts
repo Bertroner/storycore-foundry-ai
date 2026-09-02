@@ -10,26 +10,24 @@ import { OpenRouterDecisionProvider } from "../src/openrouter-provider.js";
 import { ProviderFailure } from "../src/llm-gateway.js";
 const meta = { provider: "TEST_DOUBLE", model: "TEST_DOUBLE", returnedModel: null, temperature: .25, maxOutputTokens: 700, format: "json", latencyMs: 0, requestBytes: 0, approximateTokens: 0, decisionId: "test", stepId: "test", snapshotId: "test" };
 const base = (r: DecisionRequestV1) => ({ schemaVersion: "1.0", decisionId: r.decisionId, snapshotId: r.state.snapshotId, stepId: r.stepId });
-test("repair followed by valid unavailable plan stops without later model responses", async () => {
+test("one repair and one plan remain inside one bounded decision before final intent", async () => {
   const mock = makeBridge(); const requests: DecisionRequestV1[] = []; let n = 0;
   const runner = new DecisionRunner(new CombatSensor(mock.bridge), { async decide(r) {
     requests.push(structuredClone(r)); n++;
-    let response: unknown;
-    if (n === 1 || n === 3) response = { invalid: true };
-    else if (n === 2 || n === 4) response = { ...base(r), type: "PLAN_REQUEST", goal: { kind: "retreat", destination: { x: 2, y: 2 } } };
-    else response = { ...base(r), type: "FINAL_INTENT", intent: { schemaVersion: "1.0", decisionId: r.decisionId,
-      snapshotId: r.state.snapshotId, kind: "end_turn", action: null, movement: null } };
+    const response: unknown = n === 1 ? { invalid: true } : n === 2 ?
+      { ...base(r), type: "PLAN_REQUEST", goal: { kind: "retreat", destination: { x: 2, y: 2 } } } :
+      { ...base(r), type: "FINAL_INTENT", intent: { kind: "end_turn" } };
     return { text: JSON.stringify(response), metadata: meta };
   } }, () => []);
   const result = await runner.run(fixture, mind, new AbortController().signal);
-  assert.equal(n, 2); assert.equal(result.accepted, false); assert.equal(result.status, "PLANNING_UNAVAILABLE");
+  assert.equal(n, 3); assert.equal(result.accepted, true); assert.equal(result.status, "VALIDATED_INTENT");
   assert.equal(new Set(requests.map(r => r.deadlineAt)).size, 1);
   assert.equal(new Set(requests.map(r => r.decisionId)).size, 1);
-  assert.deepEqual(requests.map(r => r.limits.modelResponsesRemaining), [5, 4]);
+  assert.deepEqual(requests.map(r => r.limits.modelResponsesRemaining), [5, 4, 3]);
   assert.equal(requests[1]?.limits.planRequestsRemaining, 2); assert.equal(requests[1]?.limits.repairResponsesRemaining, 1);
+  assert.equal(requests[2]?.limits.planRequestsRemaining, 1); assert.equal(requests[2]?.planFeedback.length, 1);
   assert.equal(result.writesDispatched, 0);
-});
-test("secret accidentally placed in mind fixture prevents any provider call", async () => {
+});test("secret accidentally placed in mind fixture prevents any provider call", async () => {
   let called = false; const mock = makeBridge();
   const runner = new DecisionRunner(new CombatSensor(mock.bridge), { async decide() { called = true; return { text: "", metadata: meta }; } }, () => ["private-test-secret"]);
   const result = await runner.run(fixture, { ...mind, personality: "private-test-secret" }, new AbortController().signal);

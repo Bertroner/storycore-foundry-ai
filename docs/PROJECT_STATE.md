@@ -1,6 +1,6 @@
 # StoryCore Foundry AI — Project State
 
-Last updated: 2026-08-31
+Last updated: 2026-09-02
 Repository: Bertroner/storycore-foundry-ai
 Branch: main
 
@@ -8,8 +8,8 @@ Branch: main
 
 **Phase 0 is COMPLETE.**
 **Pre-Phase-2 LAARU spell-compendium and V12 spell execution donor audits COMPLETE; awaiting review, no Phase 2 production implementation.**
-**Current phase: Phase 1A live read -> normalization -> real Qwen tactical decision proven; full acceptance OPEN; execution DISABLED.**
-**Exact next step: review V12_SPELL_EXECUTION_DONOR_AUDIT.md, then separately authorize one isolated supervised Fire Bolt execution-seam experiment as specified in section 22. STOP until review/authorization; no implementation or live test in this checkpoint.**
+**Current phase: Phase 2A supervised movement / Item execution vertical slice implemented; live execution acceptance OPEN.**
+**Exact next step: run one supervised turn from the packaged desktop app in the dedicated Foundry test world and review the Process log; do not retry uncertain writes.**
 
 The source audit and six design documents are complete and are canonical inputs. Do not repeat the audit or replay CODEX_START_PROMPT.md as a new task. Phase 1A now has real supervised end-to-end evidence through a schema/reference-valid Qwen tactical response. Earlier read-contract and timeout failures remain historical evidence. The later live run preserved zero writes but exposed orchestration, action-catalogue and disposition issues; full Phase 1A acceptance is not closed.
 
@@ -260,3 +260,89 @@ Operator-supplied live evidence from the packaged read-only build confirmed the 
 `DecisionRunner.run` now terminates the current decision immediately after that first valid unavailable PLAN_REQUEST. The returned status is PLANNING_UNAVAILABLE, accepted=false and writesDispatched=0. No second model call occurs, no fabricated plan is offered, and all existing deadline, repair, response, cancellation, stale-state and read-only protections remain active.
 
 Regression coverage proves both a first valid PLAN_REQUEST and a repair followed by a valid PLAN_REQUEST stop without later provider calls. This fix adds no pathfinding, movement, Item activation, Midi execution, turn advancement or other Foundry write. It does not make Phase 1A live acceptance complete; a new live run is still required to confirm the packaged behavior.
+
+## Latest checkpoint — Supervised token control implementation (2026-09-02)
+
+**Phase 2A supervised vertical slice is implemented locally; live execution acceptance is OPEN.** No live Foundry write, spell cast, attack or movement was performed while building this checkpoint. Foundry remains 12.343, D&D5e 3.3.1, and the existing API Bridge remains the sole command bus.
+
+The desktop Run action now performs one bounded supervised NPC turn: fresh OBSERVE -> real LLM decision -> strict validation -> an allowlisted Bridge command -> fresh OBSERVE. A PLAN_REQUEST receives one deterministic grid endpoint selected from the LLM goal and native walk/range facts; the same bounded decision may reference only that offered planId. Movement uses Bridge `move-token` with explicit sceneId, `canOpenDoors:false`, and fresh coordinate readback. After one successful move the adapter makes one new decision from the fresh position. A second movement in the same Run or a later Run on the same combat turn is blocked.
+
+Generic structural capability projection now covers legacy `weapon`, `spell`, `feat`, and `consumable` Items without name handlers. The LLM sees every supported offered action with real itemId, activation, range, target, damage type, uses and spell level/preparation facts, so it can compare weapons and supported spells tactically. Deterministic code never chooses which attack is better. For this slice, executable spells are limited to legacy cantrips and innate/at-will single-target/self Items. Prepared levelled spells, activities, AoE/templates, reactions, bonus-action complexity, difficult terrain, elevation/flying, doors and multi-NPC tactics remain rejected.
+
+The strict write allowlist contains only `move-token`, `dnd5e/activate-item`, `clear-targets`, and `next-turn`, with command-specific parameter schemas. Item execution clears stale targets, activates exactly one current Actor-owned Item with zero or one validated Token target, clears targets after settlement, and performs a fresh state read. D&D5e/Midi own attack, save, damage, healing, effects and resource mutation. The adapter never rolls or changes HP/slots itself. No automatic retry occurs after a timeout, failed command or ambiguous workflow. A process-level fuse blocks repeated movement or Item activation on the same observed combat turn.
+
+The former Result panel is now a live **Process log**. It records OBSERVE, DECIDE, VALIDATE, PLAN, COMMAND, MIDI, RESULT and STOP entries, provider latency, command count and safe result summaries; Advanced result data retains the bounded diagnostic object. API keys, Bridge keys, Authorization headers and raw Actor payloads are excluded.
+
+Known supervised limitations remain explicit: actor linking/perception and normal walking require the per-run operator attestation; movement remaining is not exposed natively; Bridge validates wall routing during the write rather than providing a true read-only path preview; Midi RollComplete matching in Bridge v8.11.2 is not invocation-scoped; target state is cleared rather than restored; linked world-Actor activation is the tested scope. Ambiguous workflow output stops with `WORKFLOW_CORRELATION_UNCERTAIN`. These limits prevent claiming broad production combat support.
+
+Static verification: `npm run check` passes with **94/94 tests**, including strict write envelopes, bounded planning, structural legacy spell projection, authoritative movement readback and one-shot Item/Midi observation. This is offline evidence only.
+
+Offline Electron smoke also passes with the sandboxed renderer, real IPC, a fixture Bridge, one supervised next-turn command and fresh combat readback. Test ZIP: `release/StoryCoreFoundryAI-supervised-2026-09-02-win32-x64.zip` (163,349,781 bytes; SHA-256 `C52DCFC489C82DC5AEE42DB4FFDBE85F29EEBAC7CEF9AA19093CF4DAA8AFD0FF`).
+
+**Exact next step:** launch the new supervised ZIP against the dedicated test world, Detect the current NPC turn, inspect the offered targets, tick the one-run authorization, and press **Run one supervised AI turn** once. Observe the Process log and Foundry state. Do not retry an uncertain or partially mutated result. The first live acceptance should use one linked 1x1 NPC, one unique player target, no doors/terrain/elevation, and a legacy weapon or Fire Bolt cantrip. Record the returned status/log before any broader test.
+## Live follow-up — repeated PLAN_REQUEST after PLAN_READY (2026-09-02)
+
+Operator-reported supervised run reached live Foundry reads and real Qwen planning but intentionally dispatched no write. The observed sequence was MODEL_REQUEST -> PLAN_READY (7,128 ms) -> a second PLAN_READY (33,107 ms) -> DECISION_DEADLINE at the shared 60-second snapshot lifetime. Final status was `DECISION_DEADLINE`, `writesDispatched=0`; therefore no Foundry movement or Item use was expected or claimed.
+
+Root cause: after the first ready PlanSummary, the provider request still exposed the full PLAN_REQUEST-or-FINAL_INTENT JSON schema. Qwen legally requested another plan instead of confirming the offered planId, leaving insufficient deadline for another response. The runtime now narrows every continuation with a ready plan to a strict `FinalDecisionResponseV1` schema, explicitly forbids another PLAN_REQUEST, and caps that small confirmation response at 350 output tokens. The deterministic validator independently rejects PLAN_REQUEST after any ready plan with `PLAN_ALREADY_READY`; it never converts a planning request into movement automatically. The LLM must still issue the explicit FINAL_INTENT.
+
+Decision events are now streamed into Process log when each response is validated, so PLAN_READY, rejected responses and deadline events retain actual publication times instead of appearing together after DecisionRunner returns. All snapshot expiry, stale-state checks, planId binding, write allowlists and no-retry rules remain active. Static verification remains 94/94 tests. No live retry or Foundry write was performed while applying this fix; movement/attack/spell execution still requires a new supervised run.
+## Recorded design decision for the next correction (2026-09-02)
+
+The compact LLM DecisionView should add a bounded, sanitized description hint for each Actor-owned action alongside native structured mechanics. The hint is for tactical understanding only; it is not rules authority and must never replace current Item fields or D&D5e/Midi execution. Build it deterministically from structured fields plus a short sanitized fragment of the owned Item description, with HTML, macros, controls and scripts removed and a strict length cap. Do not make an extra per-turn LLM call and do not add Item-name or per-spell handlers. A later optional cache may hold precomputed semantic summaries for complex/homebrew Items.
+
+Target authorization, NPC-relative relationship and Foundry Token disposition are separate facts. The operator-selected target set must become the closed allowlist that the validator and every ActionCapability use; the LLM may choose only among that set. For the supervised fixture, selecting a row as an attack target is explicit per-run attestation that the NPC may treat that participant as an enemy. Preserve the original Foundry disposition as diagnostic world data, but do not translate friendly into an NPC ally or require hostile before creating the attested hostile relationship. Future StoryCore relationships may supply ally/enemy/neutral attitude instead of the temporary operator attestation. Player ownership continues to determine control ownership only.
+
+This correction is now implemented locally. The UI labels checked rows as allowed attack targets; each selected row creates an explicit per-run enemy relationship regardless of Foundry disposition. Only selected identities enter nearby and ActionCapability eligibleTargets, and validation still fails closed on changed scope or references. The normalized LLM state omits Foundry disposition to avoid contradicting relationToSelf=enemy; Detect continues to display the untouched value as diagnostics.
+
+Actor-owned actions now include a deterministic canPlanApproach flag and an optional descriptionHint capped at 240 characters. The sanitizer removes HTML, scripts/styles/forms/controls, Foundry enrichers, inline rolls, URLs and control characters. Native structured mechanics remain authoritative for validation, while D&D5e/Midi remain authoritative for execution. Object/ally target kinds are not offered an enemy combatant target in this supervised slice, and approach planning requires a numeric range in scene units. No Item-name or per-spell handler and no extra LLM summarization call was added.
+
+## Live follow-up — compact FINAL_INTENT correction (2026-09-02)
+
+Operator-supplied live evidence confirms the selected-enemy and description changes reached the real model. Ethan appeared as relationToSelf=enemy and targetAuthorized=true; Foundry disposition was absent from the normalized LLM state. Actor-owned descriptions were present as bounded descriptionHint fields. Qwen selected the real Actor-owned Fire Bolt against Ethan, so the tactical-selection seam improved as intended. Execution still ended with VALIDATION_LIMIT and writesDispatched=0; no Foundry movement, Item activation, Midi workflow or HP/resource mutation occurred.
+
+The first Qwen response requested approach with Fire Bolt even though the target was 35 ft away and the action range was 120 ft. The previous planner returned a zero-distance ready plan. Subsequent Qwen responses expressed safe intended operations but omitted redundant nested schemaVersion/decisionId/snapshotId and unused null fields. The outer response IDs were correct, but the old nested contract rejected every response as DECISION_SCHEMA_INVALID.
+
+The strict response contract is now smaller: correlation and freshness IDs remain once on the outer response; activate_item requires its action, move requires its offered movement plan, and end_turn requires only kind. Optional unused action/movement may only be null. Unknown keys, invented IDs, non-offered planIds and stale snapshots still reject. PLAN_REQUEST approach now rejects with PLAN_NOT_NEEDED when the selected target is already within known normal range, prompting the LLM to choose a direct final action instead of producing a no-op movement write.
+
+Regression coverage includes the exact compact move and activate_item shapes observed live, redundant-field removal, outer ID correlation, plan binding, zero-distance planning rejection and the existing no-write safety limits. npm run check passes 94/94 tests. This is offline verification after the reported run; another supervised live run is required.
+
+## Live follow-up — reject invented movement before a plan exists (2026-09-02)
+
+Operator-supplied live result edb14193-7301-463c-a218-90cf27b0bb2b reached current Foundry state and real Qwen but dispatched no writes. The first model response returned FINAL_INTENT move with invented planId plan-approach-1 before any PlanSummary existed; deterministic validation correctly rejected it as PLAN_NOT_OFFERED. The second response selected the real Actor-owned Fire Bolt and Ethan but requested approach at 35 ft while the structured normal range was 120 ft; validation correctly rejected it as PLAN_NOT_NEEDED. Those calls consumed 25,565 ms and 32,742 ms, leaving about 1.7 seconds before the shared 60-second snapshot deadline. Final status was DECISION_DEADLINE and writesDispatched=0. No Foundry movement, Item activation, Midi workflow or mutation occurred.
+
+The provider contract now excludes the move branch from the initial structured-output schema. Movement can appear only after runtime has offered a real PlanSummary. A PLAN_NOT_OFFERED or PLAN_NOT_NEEDED repair is narrowed to a compact non-movement FINAL_INTENT schema that permits only activate_item or end_turn, uses a 350-token response cap, and explains the exact correction. Deterministic validation remains unchanged as defense in depth: invented planIds, unnecessary approach requests, stale snapshots and invalid references still reject.
+
+The normal Process log now displays the safe rejection code, such as PLAN_NOT_OFFERED or PLAN_NOT_NEEDED, alongside latency. It does not display raw payloads, Actor dumps, secrets or Authorization data. The LLM still chooses the action and target; deterministic code only constrains the protocol and validates geometry/range facts.
+
+Offline verification: npm run check passed 95/95 tests, typecheck and build. Electron smoke passed. No live retry was performed during this correction. The refreshed ZIP is release/StoryCoreFoundryAI-supervised-2026-09-02-win32-x64.zip, 163,350,195 bytes, SHA-256 BAF391954C3191080B36C815164AA8075285D860281F5CD9358F3F85AD0D3E07. Exact next step: run one new supervised live turn with the refreshed ZIP and report the Process log. Do not automatically retry an uncertain or partially mutated command.
+
+## Bounded full-turn lease implementation (2026-09-02)
+
+The operator-confirmed Fire Bolt run proved real Qwen selection, Actor-owned Item activation and Midi workflow observation. It also showed that the previous DesktopService stopped after ITEM_ACTIVATED and therefore never offered the LLM the remaining movement/bonus-action/end-turn choice.
+
+The supervised runtime now creates a process-local turn lease after the operator confirms that the NPC has not manually spent turn resources. The DecisionView exposes numeric movementRemaining plus actionAvailable and bonusActionAvailable booleans with source=turn-lease and an opaque leaseId. Initial availability comes from the current structurally supported Actor-owned catalogue: native one-cost action and bonus activations are supported generically; reaction Items remain excluded. This is not inferred native Foundry history and cannot detect actions performed outside this process before authorization.
+
+After every successful move or Item activation, runtime performs fresh Foundry observation, applies the updated lease and asks the LLM for the next tactical intent. A normal action consumes only the action slot; a bonus-action Item consumes only the bonus slot. Observed Bridge pathCost reduces movement. The supervised cap is two movement writes, one action Item, one bonus-action Item, one next-turn write and five fresh decision cycles. The LLM must explicitly choose end_turn; deterministic code never selects a tactic or silently advances combat.
+
+Spent-slot Items are marked unavailable in later DecisionViews. Validation rejects ACTION_BUDGET_SPENT, BONUS_ACTION_BUDGET_SPENT, MOVEMENT_EXHAUSTED, non-offered plans and stale turn leases. A write that becomes uncertain conservatively consumes its attempted slot and stops without retry. D&D5e/Midi remain authoritative for Item legality, attack/save/damage/effects and resource mutation.
+
+Offline verification proves action -> fresh OBSERVE -> bonus action -> fresh OBSERVE -> LLM end_turn -> confirmed different combatant, with budgets [true,true] -> [false,true] -> [false,false]. Split movement path cost is accounted and closes after two writes. npm run check passes 97/97 tests. No live Foundry command or OpenRouter request was made while implementing this change. A new supervised live test is required.
+
+Packaged full-turn test artifact: release/StoryCoreFoundryAI-supervised-full-turn-2026-09-02-win32-x64.zip, 163,351,478 bytes, SHA-256 3C8C2BC7D468900678317E7E95E2EEE822DA641FAD3258AE36BD8CF2DDC9AE48. Archive inspection found 73 entries and zero donor, analysis, Git, decision-log or settings entries.
+
+## Budget-aware DecisionView correction (2026-09-02)
+
+Operator live evidence proved Fire Bolt execution and fresh budget readback, then exposed a safe orchestration failure: after actionAvailable=false and bonusActionAvailable=false, the provider still showed spent Item cards and allowed action-linked approach requests. Qwen retried Fire Bolt; validation rejected ACTION_BUDGET_SPENT and the run stopped at PLAN_LIMIT. No second Item activation or other Foundry write was dispatched.
+
+The provider now receives a compact copy of the decision request whose actions array contains only cards still selectable under the current turn lease. The full normalized state remains inside DecisionRunner for reference, freshness and legality validation. The structured-output schema is narrowed from the same budget state: spent action/bonus Items cannot be selected; approach is absent when no usable action remains; movement-only state permits position/retreat PLAN_REQUEST or end_turn; when movement and Item slots are exhausted only end_turn remains. Deterministic code still does not choose whether to move or end the turn.
+
+Offline regression coverage reproduces the post-Fire-Bolt budget state, proves that spent Item IDs are absent from the OpenRouter DecisionView, proves the movement-only and end-turn-only schema shapes, and confirms the validator still rejects an injected spent action. npm run check passes 98/98 tests. No live Foundry or OpenRouter call was made while implementing this correction. Live acceptance remains pending one supervised run from the refreshed build.
+
+## Live budget-aware Fire Bolt full-turn checkpoint (2026-09-02)
+
+Operator-supplied live evidence confirms the corrected bounded turn completed successfully on Foundry VTT 12.343 / D&D5e 3.3.1 / Midi-QOL. Real Qwen selected the Actor-owned Fire Bolt against Ethan; PLAN_NOT_NEEDED safely rejected an unnecessary approach and the repaired activate_item intent passed reference/freshness validation. The existing Bridge performed target reset, one Item activation and target cleanup. Midi reported attackTotal=13, damageTotal=15, hitTargets=0 and failedSaves=0. This run therefore proves the invocation/workflow seam and a miss; it does not prove applied HP damage.
+
+Fresh observation then exposed movementRemaining=30, actionAvailable=false and bonusActionAvailable=false. In the budget-aware second decision, Qwen selected end_turn. One guarded next-turn command was dispatched and fresh combat readback confirmed a different current combatant at round 5 turn 0. Final status was TURN_ADVANCED and writesDispatched=4, exactly accounting for target reset, one activation, target cleanup and next-turn. There was no repeated Item activation.
+
+The first model response took 52,473 ms and its repair took 6,600 ms, close to the 60-second bounded deadline. The existing unscoped Midi RollComplete correlation risk remains; concurrent workflow safety is not proven. This checkpoint proves one supervised NPC turn against one selected target. It does not prove automatic multi-NPC continuation, multi-target tactics, reactions, AoE/templates, concentration, upcasting or levelled prepared spell execution.

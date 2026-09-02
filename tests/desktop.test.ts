@@ -22,7 +22,7 @@ async function setup(t: { after(fn: () => unknown): void }) {
   const service = new DesktopService(store, bridge, undefined, text => logs.push(text));
   t.after(async () => {
     await service.close(); assert.ok(resolve(directory).startsWith(resolve(tmpdir()) + "\\") || resolve(directory).startsWith(resolve(tmpdir()) + "/"));
-    await rm(directory, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 50 });
   });
   return { store, bridge, logs, service, directory, handlers: createIpcHandlers(service, e => e.sender.id === 7) };
 }
@@ -119,7 +119,12 @@ test("dry-run IPC result, status and summary log do not serialize credentials", 
   for (const value of [key, bridgeKey, "Authorization", "encryptedApiKey", Buffer.from(key).toString("base64")]) assert.ok(!all.includes(value));
   assert.equal(bridge.readsSent, 0);
 });
-test("renderer has no Node or network client, uses local module and masked unsaved fields", async () => {
+test("operator process log exposes safe decision rejection codes", async () => {
+  const source = await readFile("src/desktop-service.ts", "utf8");
+  assert.match(source, /Model response rejected: /);
+  assert.match(source, /error: rejectionCode/);
+  assert.ok(!source.includes("event.output"));
+});test("renderer has no Node or network client, uses local module and masked unsaved fields", async () => {
   const renderer = await readFile("desktop/renderer.ts", "utf8"); const html = await readFile("desktop/ui/index.html", "utf8");
   for (const forbidden of ["fetch(", "XMLHttpRequest", "WebSocket(", 'from "node:', "ipcRenderer", "localStorage", "Authorization"])
     assert.ok(!renderer.includes(forbidden));

@@ -1,4 +1,4 @@
-import type { DesktopService, ConnectionResult, DryRunResult } from "../src/desktop-service.js";
+import type { DesktopService, ConnectionResult, TurnRunResult } from "../src/desktop-service.js";
 import type { DetectedRunInput, DetectedTurn } from "../src/turn-detector.js";
 export type PublicStatus = ReturnType<DesktopService["status"]>;
 export type PublicSettings = PublicStatus["settings"];
@@ -12,6 +12,6 @@ export interface DesktopApi {
   clearBridgeKey(): Promise<IpcResult<PublicSettings>>;
   testOpenRouter(): Promise<IpcResult<ConnectionResult>>;
   detectTurn(): Promise<IpcResult<DetectedTurn>>;
-  runDecision(input: RunDecisionInput): Promise<IpcResult<DryRunResult>>;
+  runDecision(input: RunDecisionInput): Promise<IpcResult<TurnRunResult>>;
   cancelDecision(): Promise<IpcResult<{ status: string; writesDispatched: number }>>;
 }

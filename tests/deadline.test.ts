@@ -17,8 +17,7 @@ function deferred<T>() {
 const now = Date.UTC(2026, 7, 31, 12);
 function reply(r: DecisionRequestV1): ModelReply {
   return { text: JSON.stringify({ schemaVersion: "1.0", decisionId: r.decisionId, snapshotId: r.state.snapshotId,
-    stepId: r.stepId, type: "FINAL_INTENT", intent: { schemaVersion: "1.0", decisionId: r.decisionId,
-      snapshotId: r.state.snapshotId, kind: "end_turn", action: null, movement: null } }),
+    stepId: r.stepId, type: "FINAL_INTENT", intent: { kind: "end_turn" } }),
     metadata: { provider: "TEST_DOUBLE", model: "TEST_DOUBLE", returnedModel: null, temperature: .25, maxOutputTokens: 700,
       format: "json", latencyMs: 0, requestBytes: 0, approximateTokens: 0,
       decisionId: r.decisionId, stepId: r.stepId, snapshotId: r.state.snapshotId } };

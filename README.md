@@ -36,7 +36,7 @@ This clones pinned source versions into `_references/`.
 
 ## Current checkpoint
 
-Phase 0 is complete. Phase 1A implements a local, read-only LLM dry-run slice; live Foundry/Qwen acceptance is still pending. Do not repeat the audit or start movement/Midi execution.
+Phase 0 and the donor audits are complete. The current desktop build implements a bounded supervised vertical slice for movement, legacy Item activation and turn advancement. The LLM chooses the offered action/target/movement intent; deterministic code validates it; Foundry/D&D5e/Midi resolve and fresh state is observed. Live execution acceptance is still open.
 
 ```powershell
 npm ci
@@ -44,4 +44,4 @@ npm run check
 npm run dev
 ```
 
-Electron opens the desktop window directly; Chrome is not required. The Bridge listener remains ws://127.0.0.1:3210/bridge. Optional portable Windows build: `npm run package`. See [Windows setup and acceptance](docs/PHASE1A_TESTING.md), [project state](docs/PROJECT_STATE.md) and [StoryCore boundary](docs/STORYCORE_BOUNDARY.md). Keys belong only in the desktop masked settings UI, never this repository.
+Electron opens the desktop window directly; Chrome is not required. The Bridge listener remains ws://127.0.0.1:3210/bridge. Optional portable Windows build: `npm run package`. The Run button can dispatch Foundry writes after its per-run authorization checkbox; use only the dedicated test world and inspect the Process log. See [Windows setup and acceptance](docs/PHASE1A_TESTING.md), [project state](docs/PROJECT_STATE.md) and [StoryCore boundary](docs/STORYCORE_BOUNDARY.md). Keys belong only in the desktop masked settings UI, never this repository.

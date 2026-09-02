@@ -1,0 +1,389 @@
+STORYCORE FOUNDRY AI — DEVELOPMENT CHANGE JOURNAL
+=================================================
+
+Purpose
+-------
+This file is the persistent engineering journal for this repository.
+Read it before every development or debugging task.
+Append every meaningful attempt, including successful, failed, reverted, blocked,
+and packaged variants. Never record API keys, Bridge keys, Authorization headers,
+DPAPI data, credentials, or raw payloads containing secrets.
+
+Mandatory workflow
+------------------
+1. Read AGENTS.md and this journal before changing program code.
+2. Record the task baseline and intended change before editing.
+3. Record each meaningful attempt and its result.
+4. Mark failures honestly; do not erase them after a later success.
+5. Record validation commands, test counts, produced artifacts, commit/push state,
+   and the exact next unresolved issue.
+
+Entry format
+------------
+[YYYY-MM-DD HH:MM] STATUS — Short title
+Scope:
+Attempt:
+Result:
+Validation:
+Files/artifacts:
+Next:
+
+Historical entries reconstructed from the current working session
+------------------------------------------------------------------
+
+[2026-09-02] SUCCESS — Selected-target relationship and compact action context
+Scope: Supervised NPC decision view.
+Attempt: Separate combat targeting from Foundry token disposition. Mark only
+operator-selected combatants as relationToSelf=enemy and targetAuthorized=true.
+Add bounded sanitized descriptionHint data and structural target eligibility.
+Result: Qwen received the selected Ethan target as an enemy and selected the
+real Actor-owned Fire Bolt action. No name-specific spell handler was added.
+Validation: Repository test suite passed after follow-up repairs.
+Files/artifacts: combat normalizer, decision runner/provider, desktop UI/service,
+contracts, schema, tests, canonical documentation.
+Next: Validate an executable FINAL_INTENT from the model.
+
+[2026-09-02] FAILED — apply_patch blocked by Windows workspace ACL
+Scope: Source editing.
+Attempt: Apply a normal patch through the patch helper.
+Result: The helper returned a deny-read/helper_unknown_error and made no change.
+Validation: Working tree was inspected before continuing.
+Next: Use controlled PowerShell file editing inside the approved workspace.
+
+[2026-09-02] FAILED — First PowerShell exact replacement
+Scope: Source editing.
+Attempt: Replace an exact multiline block.
+Result: CRLF/LF mismatch prevented the match. No partial change was retained.
+Next: Use newline-tolerant matching.
+
+[2026-09-02] FAILED — Second PowerShell editing invocation
+Scope: Source editing.
+Attempt: Run a replacement containing JavaScript template syntax.
+Result: PowerShell interpreted embedded characters and the generated JavaScript
+was invalid. No partial change was retained.
+Next: Use safer literal quoting and verify immediately after each edit.
+
+[2026-09-02] LIVE-FAILED-SAFE — Qwen produced safe intent, strict schema rejected it
+Scope: Live supervised NPC turn.
+Attempt: Qwen selected Fire Bolt against Ethan, received a zero-distance ready
+plan, then returned compact move/activate-item intents.
+Result: Runtime returned VALIDATION_LIMIT and dispatched zero writes because the
+nested intent omitted redundant protocol identity fields required by the old
+schema. Foundry state was unchanged.
+Validation: Live log showed PLAN_READY, repeated DECISION_SCHEMA_INVALID, then
+VALIDATION_LIMIT; writesDispatched=0.
+Next: Align strict schema with compact semantic FINAL_INTENT while preserving
+outer decision/snapshot/step correlation.
+
+[2026-09-02] SUCCESS — Compact FINAL_INTENT schema and no-op approach handling
+Scope: Bounded decision protocol.
+Attempt: Keep correlation fields on the outer response, use strict discriminated
+nested intent branches, and return PLAN_NOT_NEEDED when the target is already
+within the selected action range.
+Result: The exact compact Qwen activate_item and move shapes validate. A ranged
+action already in range can proceed directly without a meaningless movement plan.
+Validation: npm run check passed 94/94 tests; typecheck and build passed.
+Next: Run another supervised live test; do not retry automatically after an
+ambiguous or partial write.
+
+[2026-09-02] FAILED-THEN-REPAIRED — Documentation regex overreplacement
+Scope: docs/COMBAT_INTENT_SCHEMA.md.
+Attempt: Update one fenced JSON example with a .NET regular-expression overload.
+Result: Three fenced JSON examples were replaced unintentionally. The issue was
+detected, PLAN_REQUEST and FINAL_INTENT examples were restored by exact block
+position, and canonical schema equality later passed.
+Validation: Documentation inspected; npm run check and git diff --check passed.
+Next: Prefer exact bounded replacements for repeated fenced blocks.
+
+[2026-09-02] FAILED-THEN-FIXED — Planning fixtures became zero-distance
+Scope: Tests for PLAN_NOT_NEEDED.
+Attempt: Run the suite after adding no-op approach rejection.
+Result: 92/94 passed; two planning tests used a target exactly 5 ft away for a
+5 ft melee action and correctly stopped needing a plan. Fixtures were moved to
+20 ft, preserving the tests' intended planning scenario.
+Validation: Final npm run check passed 94/94.
+Next: Keep range-boundary fixtures explicit.
+
+[2026-09-02] PACKAGED — Supervised Windows test build
+Scope: Portable desktop application.
+Attempt: Build, smoke-test, package, inspect archive contents, and exclude local
+settings, decisions, analysis, references, and Git metadata.
+Result: Final archive created successfully.
+Validation: npm run test:desktop passed; git diff --check passed; ZIP contains
+73 entries and zero forbidden entries.
+Files/artifacts:
+C:\StoryCore-Dev\storycore-foundry-ai\release\StoryCoreFoundryAI-supervised-2026-09-02-win32-x64.zip
+SHA256:
+C52DCFC489C82DC5AEE42DB4FFDBE85F29EEBAC7CEF9AA19093CF4DAA8AFD0FF
+Next: Supervised live verification of compact FINAL_INTENT and execution seam.
+
+[2026-09-02] FAILED — First journal creation invocation
+Scope: Project process documentation.
+Attempt: Create this journal and update AGENTS.md in one JavaScript-orchestrated
+PowerShell call.
+Result: Markdown quote characters inside the JavaScript template caused a parser
+error before PowerShell ran. No filesystem change occurred.
+Next: Retry with quote-safe literal content.
+
+[2026-09-02] SUCCESS — Persistent engineering journal established
+Scope: Project process documentation.
+Attempt: Create PROJECT_CHANGE_JOURNAL.txt and add mandatory journal workflow to
+AGENTS.md.
+Result: Journal established with reconstructed successes and failures from the
+current working session. Future development must begin by reading it.
+Validation: Pending immediate git diff check.
+Files/artifacts: PROJECT_CHANGE_JOURNAL.txt, AGENTS.md.
+Next: Append the validation result, then use this journal for every development
+task.
+
+[2026-09-02] FAILED — Sandboxed journal verification
+Scope: Project process documentation.
+Attempt: Read the new files and run git diff/status through normal sandbox access.
+Result: Windows deny-read ACL prevented process creation. No filesystem change
+was made by the failed verification commands.
+Next: Repeat the same read-only checks through approved workspace access.
+
+[2026-09-02] SUCCESS — Journal verification completed
+Scope: Project process documentation.
+Attempt: Read back both files, run git diff --check for them, and inspect the
+working tree.
+Result: The journal and AGENTS.md rule are present. Existing program changes and
+untracked build artifacts remain untouched.
+Validation: git diff --check -- AGENTS.md PROJECT_CHANGE_JOURNAL.txt exited 0.
+Only the existing Git LF-to-CRLF informational warning was reported.
+Files/artifacts: PROJECT_CHANGE_JOURNAL.txt, AGENTS.md.
+Commit/push: Not performed; not requested.
+Next: Before the next program change, read AGENTS.md and this journal, then append
+a new baseline entry before editing.
+
+[2026-09-02 11:45] IN-PROGRESS — Diagnose repeated rejection before execution
+Scope: Supervised Qwen decision protocol and operator log.
+Baseline: Live run edb14193-7301-463c-a218-90cf27b0bb2b returned
+DECISION_DEADLINE with writesDispatched=0.
+Observed: Response 1 invented an unoffered movement plan and was rejected with
+PLAN_NOT_OFFERED. Response 2 requested approach with Fire Bolt at 35 ft despite
+its observed 120 ft range and was rejected with PLAN_NOT_NEEDED. Only 1.7 seconds
+remained for the third response.
+Intended change: Prevent move in the initial provider schema, force a compact
+non-movement FINAL_INTENT repair for PLAN_NOT_OFFERED/PLAN_NOT_NEEDED, and expose
+the safe rejection code in the normal process log.
+Safety: No Foundry call, live LLM call, Bridge write, or rules implementation.
+Validation: Pending focused regression tests and npm run check.
+Next: Edit protocol/provider/logging code and add regression coverage.
+
+[2026-09-02 11:55] FAILED — Exact multiline protocol replacement
+Scope: contracts.ts, openrouter-provider.ts, desktop-service.ts.
+Attempt: Apply guarded exact multiline replacements.
+Result: CONTRACTS_PATTERN_NOT_FOUND because newline representation did not match.
+The command stopped before the first Set-Content, so no source file changed.
+Next: Use guarded line-index editing.
+
+[2026-09-02 12:00] BLOCKED-THEN-RESUMED — Regression-test edit approval limit
+Scope: tests/adapter.test.ts and tests/desktop.test.ts.
+Attempt: Add regression tests for the initial no-move schema, direct repair schema,
+and safe rejection-code logging.
+Result: The execution environment rejected process creation before the command ran
+because the automatic approval usage limit was reached. Test files were unchanged
+by that attempt. The user then explicitly requested continuation.
+Next: Apply the same bounded test-only edit and run validation.
+
+[2026-09-02 12:06] FAILED — EOF normalization command parser conflict
+Scope: Test file formatting.
+Attempt: Normalize EOF and run the full check in one command.
+Result: The JavaScript orchestration parser rejected PowerShell newline escape
+characters before PowerShell started. No filesystem change occurred.
+Next: Retry using numeric newline characters without shell escape syntax.
+
+[2026-09-02 12:15] SUCCESS — Initial movement contract narrowed after live failure
+Scope: OpenRouter structured-output schema, bounded repair, Process log and tests.
+Attempt: Exclude move from the initial schema because no planId exists yet. For
+PLAN_NOT_OFFERED and PLAN_NOT_NEEDED, require a compact non-movement FINAL_INTENT
+and provide explicit repair guidance. Show the safe rejection code in Process log.
+Result: Initial Qwen responses cannot fabricate movement through structured output.
+An unnecessary approach repair must choose activate_item or end_turn. Runtime
+validation still rejects invented/stale references independently.
+Validation: npm run check passed 95/95 tests, typecheck and build. Electron smoke
+passed. git diff --check pending after documentation update. No live LLM or Foundry
+test was run and no Foundry write was dispatched during development.
+Files/artifacts: src/contracts.ts, src/openrouter-provider.ts,
+src/desktop-service.ts, tests/adapter.test.ts, tests/desktop.test.ts, canonical
+checkpoint docs, refreshed Windows ZIP.
+Artifact:
+C:\StoryCore-Dev\storycore-foundry-ai\release\StoryCoreFoundryAI-supervised-2026-09-02-win32-x64.zip
+Size: 163350195 bytes
+SHA256: BAF391954C3191080B36C815164AA8075285D860281F5CD9358F3F85AD0D3E07
+Commit/push: Not performed.
+Next: One supervised live run from the refreshed ZIP; do not retry after an
+uncertain or partial mutation.
+
+[2026-09-02 12:18] SUCCESS — Final verification recorded
+Scope: Current correction checkpoint.
+Result: Canonical checkpoint documents match the live evidence and implemented
+protocol correction. Existing unrelated/uncommitted working-tree content remains
+present and was not removed.
+Validation: git diff --check exited 0; npm run check passed 95/95; Electron smoke
+passed; ZIP inspection found 73 entries, executable present and zero forbidden
+entries.
+Commit/push: Not performed; not requested.
+Next: Operator live test with the refreshed ZIP.
+
+[2026-09-02 16:17] LIVE-SUCCESS-WITH-LIMITS — Fire Bolt execution seam completed
+Scope: One supervised live NPC turn in Foundry V12.343 / D&D5e 3.3.1 / Midi-QOL.
+Attempt: Real Qwen selected the Actor-owned Fire Bolt against Ethan. The first
+PLAN_REQUEST was rejected as PLAN_NOT_NEEDED, then the bounded repair returned a
+valid activate_item intent.
+Result: Pre-command scope revalidation passed. The runtime cleared stale targets,
+dispatched exactly one dnd5e/activate-item, cleared targets after settlement, and
+performed fresh readback. Final status ITEM_ACTIVATED; writesDispatched=3. The
+three writes represent target reset, one Item activation, and target cleanup.
+Observed Midi summary: attackTotal=17, damageTotal=13, hitTargets=0,
+failedSaves=0.
+Limits: hitTargets=0 means the supplied summary does not prove applied damage.
+damageTotal can be a rolled amount without a hit. Confirm target HP before/after
+from fresh readback before claiming damage mutation. Existing Bridge RollComplete
+capture is not invocation-scoped, so isolated execution supports correlation but
+does not remove the production workflow-matching risk.
+Validation: Operator reported Fire Bolt visibly executed in Foundry and Midi
+capture returned. No automatic retry occurred.
+Files/artifacts: PROJECT_CHANGE_JOURNAL.txt only.
+Commit/push: Not performed.
+Next: Inspect HP before/after and target cleanup from Advanced result data. Treat
+this run as proof of simple legacy spell invocation and Midi workflow observation,
+not proof of every spell family or production-safe workflow correlation.
+
+[2026-09-02 16:30] IN-PROGRESS — Bounded full-turn action economy
+Scope: Supervised turn orchestration, compact budgets and legacy bonus actions.
+Baseline: Live Fire Bolt activation succeeded, but DesktopService stopped after the
+Item and did not request movement, a bonus action, or end_turn. Normalized budgets
+were all null and only activation.type=action Items entered the catalogue.
+Intended change: Add a process-local turn lease after operator authorization. Show
+remaining movement plus available action/bonus slots to the LLM, support generic
+legacy one-cost bonus Items, re-observe after every command, and continue a bounded
+episode until LLM end_turn or a safety limit.
+Safety: Foundry/D&D5e/Midi remain rules authority. No reaction, AoE, levelled spell,
+arbitrary code, per-spell handler, automatic tactical choice, or live test. The
+ledger is explicit process-local state and assumes the operator starts it before
+manual actions on that NPC turn.
+Validation: Pending unit, integration, full check, Electron smoke and package.
+Next: Implement pure turn-ledger functions, integrate them into normalization,
+validation and DesktopService, then add regression tests.
+
+[2026-09-02 16:38] FAILED — Exact multiline turn-budget integration edit
+Scope: combat-normalizer.ts, contracts.ts and decision-runner.ts.
+Attempt: Guarded multiline replacements for bonus actions and budget hooks.
+Result: NORMALIZER_LEGACY_PATTERN_NOT_FOUND due newline representation. The command
+stopped before Set-Content, so none of these source files changed in this attempt.
+Next: Apply guarded line-index edits.
+
+[2026-09-02 16:42] PARTIAL-FAILED — Movement budget integration replacement
+Scope: turn-budget.ts and intent-executor.ts.
+Attempt: Add a two-write split-movement cap and make executor compare path cost
+against remaining movement.
+Result: turn-budget.ts was updated successfully. The subsequent executor text
+replacement failed on a PowerShell char/string overload before writing that file.
+Next: Verify the ledger file and edit the two executor lines by guarded index.
+
+[2026-09-02 16:47] EXPECTED-FAILED — Legacy tests exposed changed turn semantics
+Scope: Existing test suite after turn-ledger integration.
+Attempt: Run all 95 pre-existing tests before updating expectations.
+Result: 93 passed. One test expected bonus activation to be omitted; one expected
+DesktopService to stop immediately after the first Item. These are the two intended
+behavior changes. No unrelated regression appeared.
+Next: Keep reaction unsupported, add explicit bonus projection coverage, and replace
+the one-action fuse test with action -> bonus -> end_turn budget coverage.
+
+[2026-09-02 16:52] FAILED-THEN-FIXING — UI trailing blank line
+Scope: desktop/ui/index.html formatting.
+Attempt: Run npm run check and git diff --check after full-turn implementation.
+Result: npm run check passed 97/97 tests, typecheck and build. git diff --check
+reported only one extra blank line at the HTML EOF introduced by PowerShell.
+Next: Normalize that EOF and update canonical documentation.
+
+[2026-09-02 16:58] FAILED-THEN-FIXING — Normalized-state documentation EOF
+Scope: docs/NORMALIZED_COMBAT_STATE.md formatting.
+Attempt: Full validation after synchronizing canonical documentation.
+Result: npm run check passed 97/97 tests, typecheck and build. git diff --check
+reported only one extra blank line at EOF.
+Next: Normalize the documentation EOF, run Electron smoke and package.
+
+[2026-09-02 17:05] SUCCESS — Bounded full-turn lease packaged
+Scope: Supervised movement, action, bonus action and explicit LLM end-turn cycle.
+Result: DecisionView now exposes a process-local turn lease. Runtime re-observes
+after each command and permits up to five LLM decisions, two movement writes, one
+normal action Item, one bonus-action Item and one confirmed next-turn. Generic
+legacy bonus Items are projected by activation.type=bonus; reactions remain
+excluded. Fire Bolt was not hardcoded and tactical selection remains with the LLM.
+Safety: The operator must attest that the NPC has not manually spent turn resources
+before starting. Unknown/uncertain writes stop without retry. Foundry/D&D5e/Midi
+remain rule authority.
+Validation: npm run check passed 97/97 tests, typecheck and build. Electron smoke
+passed. git diff --check passed. Archive contains 73 entries and zero forbidden
+local/donor/settings/log entries. No live Foundry or OpenRouter test was run during
+implementation.
+Artifact:
+C:\StoryCore-Dev\storycore-foundry-ai\release\StoryCoreFoundryAI-supervised-full-turn-2026-09-02-win32-x64.zip
+Size: 163351478 bytes
+SHA256: 3C8C2BC7D468900678317E7E95E2EEE822DA641FAD3258AE36BD8CF2DDC9AE48
+Commit/push: Not performed.
+Next: Run exactly one supervised live turn from the new full-turn ZIP. Confirm the
+NPC has not acted manually, then observe action/bonus/movement budgets and
+TURN_ADVANCED. Stop without retry on any uncertain or partial mutation.
+
+[2026-09-02 17:20] IN-PROGRESS — Budget-aware compact decision view
+Scope: OpenRouter decision payload and structured response schema after an observed command.
+Baseline: Live Fire Bolt succeeded, then fresh turn budget correctly reported movementRemaining=30, actionAvailable=false and bonusActionAvailable=false. The provider still exposed spent action cards and allowed action-linked PLAN_REQUEST, so Qwen retried Fire Bolt and the runtime stopped safely with PLAN_LIMIT; no additional Foundry writes occurred.
+Intended change: Filter provider-visible action cards by current action/bonus budgets and build a strict budget-aware schema. With movement only, allow position/retreat PLAN_REQUEST or end_turn; with no remaining resources, allow only end_turn. Preserve the full internal state and validator as defense in depth.
+Safety: No live Foundry/OpenRouter call. No deterministic tactical choice, per-spell handler, rules calculation, or write-path expansion.
+Validation: Pending focused regression tests, npm run check, git diff --check, Electron smoke and refreshed test archive.
+Next: Inspect provider/contracts/test structure and implement the smallest provider-boundary change.
+
+[2026-09-02 17:24] FAILED — apply_patch blocked by Windows workspace ACL
+Scope: contracts.ts and openrouter-provider.ts.
+Attempt: Add budget-aware provider view and schema with the patch helper.
+Result: The helper failed before reading the first file with the known deny-read ACL error. No source file changed.
+Next: Use guarded PowerShell line editing in the approved workspace.
+
+[2026-09-02 17:31] EXPECTED-FAILED — End-turn-only regression assumed the wrong root shape
+Scope: tests/adapter.test.ts.
+Attempt: Run the focused provider/contract suite after budget-aware filtering.
+Result: 29/30 passed. The new test expected root oneOf for the no-movement final schema, but the existing finalDecisionSchema is a single object with properties.type=FINAL_INTENT. Production code compiled and the movement-only assertions passed.
+Validation: npx tsx --test tests/adapter.test.ts.
+Next: Correct the test to assert the canonical single-object final schema, then rerun.
+
+[2026-09-02 17:42] SUCCESS — Budget-aware DecisionView packaged
+Scope: OpenRouter provider boundary, strict structured-output schema, regression tests and checkpoint documentation.
+Attempt: Preserve the full normalized CombatState inside DecisionRunner while sending OpenRouter a cloned DecisionView containing only Item cards still selectable under the current turn lease. Derive the offered response branches from remaining action, bonus-action and movement budgets.
+Result: After actionAvailable=false and bonusActionAvailable=false, spent Items are absent from the model context and activate_item/approach branches are absent from the schema. With movement remaining, the LLM may choose position/retreat or end_turn. With movement exhausted, only end_turn remains. The validator still independently rejects injected spent actions. No deterministic tactical choice was added.
+Validation: Focused adapter suite passed 30/30 after correcting one test-only root-schema assumption. npm run check passed 98/98 tests, typecheck and build. Electron smoke passed. git diff --check passed before packaging. No live Foundry or OpenRouter call occurred.
+Files/artifacts: src/contracts.ts, src/openrouter-provider.ts, tests/adapter.test.ts, docs/PROJECT_STATE.md, docs/CHAT_HANDOFF.md, docs/PHASE1A_TESTING.md.
+Artifact: C:\StoryCore-Dev\storycore-foundry-ai\release\StoryCoreFoundryAI-budget-aware-turn-2026-09-02-win32-x64.zip
+Size: 163351903 bytes
+SHA256: 2109805FEB5972CBAFDE0D490D318D3A9ABFE8D52B6D01C43E7184574237EA96
+Archive: 73 entries; executable present; zero forbidden donor/analysis/Git/decision/settings entries.
+Commit/push: Not performed; the working tree already contains the broader uncommitted supervised implementation.
+Next: Run one supervised live turn from this exact ZIP. After Item use, confirm the next DecisionView leads to optional position/retreat or TURN_ADVANCED instead of ACTION_BUDGET_SPENT/PLAN_LIMIT. Stop without retry on ambiguous or partial mutation.
+
+[2026-09-02 17:02 LIVE] LIVE-SUCCESS — Budget-aware Fire Bolt turn advanced
+Scope: One supervised NPC turn in live Foundry V12.343 / D&D5e 3.3.1 / Midi-QOL.
+Attempt: Qwen selected Actor-owned Fire Bolt against Ethan. PLAN_NOT_NEEDED rejected unnecessary approach, the repair selected activate_item, fresh observation marked action/bonus unavailable, and the budget-aware second decision selected end_turn.
+Result: One Fire Bolt invocation completed through the Bridge and Midi workflow observation. Observed attackTotal=13, damageTotal=15, hitTargets=0 and failedSaves=0; this is a miss and does not prove HP damage. Foundry then confirmed a different current combatant with TURN_ADVANCED at round 5 turn 0. writesDispatched=4 exactly matches target reset, one Item activation, target cleanup and one next-turn. No repeated attack occurred.
+Limits: First model response took 52,473 ms and its repair 6,600 ms, close to the 60-second decision deadline. Midi RollComplete capture remains insufficiently scoped for concurrent workflows. The post-advance budget line reflects the completed lease and is diagnostic only; no next-combatant decision was started.
+Validation: Operator observed the spell, Midi workflow and skipped turn in live Foundry. Offline npm run check previously passed 98/98 and Electron smoke passed.
+Commit/push: Pending this requested GitHub checkpoint.
+Next: Preserve this working checkpoint. Multi-NPC automatic continuation, concurrent workflow correlation, reactions, AoE/templates and levelled prepared spells remain outside the proven scope.
+
+[2026-09-02 17:55] FAILED — Checkpoint secret-scan command quoting
+Scope: Intended Git checkpoint files.
+Attempt: Run one rg expression covering provider and Bridge credential patterns.
+Result: PowerShell parsed the embedded quote class before rg started. No file changed and no scan result was produced.
+Next: Use a PowerShell file loop that reports only category and path, never matching secret text.
+
+[2026-09-02 17:57] FAILED — Secret-scan wrapper parser
+Scope: Intended Git checkpoint files.
+Attempt: Send the safer PowerShell scanner through a JavaScript template string.
+Result: The orchestration parser rejected regex escape characters before PowerShell started. No file changed.
+Next: Retry with a raw JavaScript string.
+
+[2026-09-02 18:08] FAILED - Checkpoint staging wrapper parser. The orchestration parser rejected two combined journal/staging wrappers before PowerShell started; neither attempt changed files or staging. Next: run journal and staging as separate commands.
+[2026-09-02 18:09] CHECKPOINT-READY - Supervised single-NPC turn. Operator live test completed one Qwen-selected Fire Bolt miss, Midi workflow observation and LLM-selected end_turn with confirmed different combatant. npm run check passed 98/98; Electron smoke and git diff --check passed; 38 intended files had zero credential-pattern findings. Authorized commit/push pending. Artifact is gitignored release/StoryCoreFoundryAI-budget-aware-turn-2026-09-02-win32-x64.zip, SHA256 2109805FEB5972CBAFDE0D490D318D3A9ABFE8D52B6D01C43E7184574237EA96. Exclude local analysis package and secrets.
+[2026-09-02 18:16] BLOCKED - GitHub checkpoint push. Local checkpoint commit was created after 98/98 tests. git push origin main was rejected by the execution safety reviewer because it would publish this checkpoint together with two earlier local commits, 31eb467 and 0eb1643. No remote state changed. Next: obtain explicit operator approval for pushing the complete three-commit local main chain to Bertroner/storycore-foundry-ai origin/main.

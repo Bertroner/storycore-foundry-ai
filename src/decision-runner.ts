@@ -2,10 +2,12 @@ import { PHASE1A_DECISION_LIFETIME_MS } from "./phase1a-config.js";
 import { randomUUID } from "node:crypto";
 import { CombatNormalizer } from "./combat-normalizer.js";
 import type { CombatSensor, RawSnapshot } from "./combat-sensor.js";
-import { DevFixtureMindProvider, parseDecision, validateDecision, type DecisionRequestV1 } from "./contracts.js";
+import { DevFixtureMindProvider, parseDecision, validateDecision, type CombatIntentV1,
+  type DecisionRequestV1 } from "./contracts.js";
 import { ProviderFailure, type LlmDecisionGateway } from "./llm-gateway.js";
+import { buildPlan } from "./plan-builder.js";
 import { ensure, ensureNoSecrets, safeError, strictJson, SafeError } from "./safety.js";
-// Abort the caller's wait even if a provider ignores cancellation. Late results have no acceptance path.
+
 async function awaitModel<T>(operation: () => Promise<T>, signal: AbortSignal): Promise<T> {
   let onAbort: () => void = () => {};
   const cancelled = new Promise<never>((_resolve, reject) => {
@@ -14,28 +16,34 @@ async function awaitModel<T>(operation: () => Promise<T>, signal: AbortSignal): 
   });
   try {
     ensure(!signal.aborted, "DECISION_DEADLINE");
-    return await Promise.race([Promise.resolve().then(() => { ensure(!signal.aborted, "DECISION_DEADLINE"); return operation(); }), cancelled]);
+    return await Promise.race([Promise.resolve().then(() => {
+      ensure(!signal.aborted, "DECISION_DEADLINE"); return operation();
+    }), cancelled]);
   } finally { signal.removeEventListener("abort", onAbort); }
 }
+
 export class DecisionRunner {
   private busy = false;
   constructor(private sensor: CombatSensor, private gateway: LlmDecisionGateway, private secrets: () => string[]) {}
-  async run(fixture: unknown, mindFixture: unknown, signal: AbortSignal, captureDetected?: () => Promise<RawSnapshot>) {
+  async run(fixture: unknown, mindFixture: unknown, signal: AbortSignal, captureDetected?: () => Promise<RawSnapshot>,
+    onEvent?: (event: Record<string, unknown>) => void,
+    prepareState?: (state: ReturnType<CombatNormalizer["normalize"]>) => void) {
     ensure(!this.busy, "DECISION_BUSY"); this.busy = true;
     const events: Record<string, unknown>[] = [];
+    const publish = (event: Record<string, unknown>) => { try { onEvent?.(structuredClone(event)); } catch {} };
     let state: ReturnType<CombatNormalizer["normalize"]> | null = null;
     let narrative: Awaited<ReturnType<DevFixtureMindProvider["getMind"]>> | null = null;
+    let acceptedIntent: CombatIntentV1 | null = null;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const timeoutController = new AbortController();
     let providerStartedAt: number | null = null, providerLatencyMs: number | null = null;
     let accepted = false; let status = "PAUSED"; const decisionId = randomUUID();
     try {
-      // Desktop supplies a trusted detected-scope guard; standalone tests still use the same sensor.
       const raw = await (captureDetected ? captureDetected() : this.sensor.capture(fixture));
-      state = new CombatNormalizer().normalize(raw);
+      state = new CombatNormalizer().normalize(raw); prepareState?.(state);
       narrative = await new DevFixtureMindProvider(mindFixture).getMind(state.self.actorId);
-      // Perceived and self IDs are the only relationship identities accepted in the model DTO.
-      ensure(narrative.relationships.every(r => r.actorId === state!.self.actorId || state!.nearby.some(t => t.actorId === r.actorId)), "MIND_UNKNOWN_ACTOR");
+      ensure(narrative.relationships.every(r => r.actorId === state!.self.actorId ||
+        state!.nearby.some(t => t.actorId === r.actorId)), "MIND_UNKNOWN_ACTOR");
       ensureNoSecrets(JSON.stringify({ state, narrative }), this.secrets());
       const deadlineAt = state.expiresAt;
       timeout = setTimeout(() => timeoutController.abort(), Math.max(1, Date.parse(deadlineAt) - Date.now()));
@@ -44,9 +52,11 @@ export class DecisionRunner {
       const planFeedback: DecisionRequestV1["planFeedback"] = [];
       while (responses > 0 && !accepted) {
         ensure(!deadline.aborted && Date.now() < Date.parse(deadlineAt), "DECISION_DEADLINE");
-        const request: DecisionRequestV1 = { schemaVersion: "1.0", decisionId, stepId: randomUUID(), deadlineAt,
+        const request: DecisionRequestV1 = {
+          schemaVersion: "1.0", decisionId, stepId: randomUUID(), deadlineAt,
           limits: { planRequestsRemaining: plans, repairResponsesRemaining: repairs, modelResponsesRemaining: responses },
-          state, narrative, planFeedback: [...planFeedback] };
+          state, narrative, planFeedback: [...planFeedback]
+        };
         responses--;
         providerStartedAt = Date.now(); providerLatencyMs = null;
         const reply = await awaitModel(() => this.gateway.decide(request, repairCode, deadline), deadline);
@@ -55,7 +65,7 @@ export class DecisionRunner {
         ensureNoSecrets(reply.text, this.secrets());
         const event: Record<string, unknown> = { metadata: reply.metadata, output: reply.text }; events.push(event);
         let recognizedPlan = false;
-        try { recognizedPlan = (strictJson(reply.text) as { type?: string })?.type === "PLAN_REQUEST"; } catch { /* Parsing error is recorded by the strict validator below. */ }
+        try { recognizedPlan = (strictJson(reply.text) as { type?: string })?.type === "PLAN_REQUEST"; } catch {}
         if (recognizedPlan) { ensure(plans > 0, "PLAN_LIMIT"); plans--; }
         let freshnessFailed = false;
         try {
@@ -69,19 +79,21 @@ export class DecisionRunner {
           ensure(!deadline.aborted && Date.now() < Date.parse(deadlineAt), "STALE_SNAPSHOT");
           repairCode = null;
           if (response.type === "PLAN_REQUEST") {
-            event.validation = "SCHEMA_AND_REFERENCES_VALID"; event.status = "PLANNING_UNAVAILABLE";
-            event.response = response;
-            planFeedback.push({ requestStepId: request.stepId, summary: null,
-              error: { code: "PLANNING_UNAVAILABLE", message: "Phase 1A has no path preview implementation; no route or planId offered." } });
-            // With no planner there is no valid planId a later response could use.
-            // End this supervised decision instead of spending the snapshot on more model calls.
-            status = "PLANNING_UNAVAILABLE"; break;
+            const plan = buildPlan(state, decisionId, request.stepId, response.goal);
+            state.movement.plans.push(plan);
+            event.validation = "SCHEMA_REFERENCES_AND_FRESHNESS_VALID";
+            event.status = plan.planId ? "PLAN_READY" : "PLAN_UNAVAILABLE";
+            event.response = response; event.plan = plan;
+            planFeedback.push({ requestStepId: request.stepId, summary: plan,
+              error: plan.planId ? null : { code: "PLAN_UNAVAILABLE", message: plan.blockers.join("; ") || "No plan offered" } });
+            publish(event);
           } else {
             event.validation = "SCHEMA_REFERENCES_AND_FRESHNESS_VALID"; event.response = response;
-            event.status = "DRY-RUN VALIDATED INTENT"; accepted = true; status = "DRY-RUN VALIDATED INTENT";
+            event.status = "VALIDATED_INTENT"; accepted = true; acceptedIntent = response.intent; status = "VALIDATED_INTENT";
+            publish(event);
           }
         } catch (error) {
-          const code = safeError(error); event.validation = "REJECTED"; event.error = code;
+          const code = safeError(error); event.validation = "REJECTED"; event.error = code; publish(event);
           if (freshnessFailed || ["STALE_SNAPSHOT", "BRIDGE_DISCONNECTED", "DECISION_DEADLINE"].includes(code)) throw error;
           if (!repairs || !responses) { status = "VALIDATION_LIMIT"; break; }
           repairs--; repairCode = code;
@@ -91,12 +103,17 @@ export class DecisionRunner {
     } catch (error) {
       const code = signal.aborted ? "CANCELLED" : timeoutController.signal.aborted ||
         (state && Date.now() >= Date.parse(state.expiresAt)) ? "DECISION_DEADLINE" : safeError(error);
-      if (providerStartedAt !== null && providerLatencyMs === null) providerLatencyMs = Math.max(0, Date.now() - providerStartedAt);
-      events.push({ status: "PAUSED", error: code,
+      if (providerStartedAt !== null && providerLatencyMs === null)
+        providerLatencyMs = Math.max(0, Date.now() - providerStartedAt);
+      const paused = { status: "PAUSED", error: code,
         ...(code === "DECISION_DEADLINE" ? { timeoutMs: PHASE1A_DECISION_LIFETIME_MS, latencyMs: providerLatencyMs } : {}),
-        ...(error instanceof ProviderFailure ? { metadata: error.metadata } : {}) }); status = code;
+        ...(error instanceof ProviderFailure ? { metadata: error.metadata } : {}) };
+      events.push(paused); publish(paused);
+      status = code;
     } finally { clearTimeout(timeout); this.busy = false; }
-    return { decisionId, status, accepted, execution: "DISABLED", writesDispatched: 0, state, narrative, events,
+    return { decisionId, status, accepted, acceptedIntent,
+      execution: accepted ? "READY_FOR_SUPERVISED_COMMAND" : "DISABLED", writesDispatched: 0,
+      state, narrative, events,
       timing: { timeoutMs: PHASE1A_DECISION_LIFETIME_MS,
         elapsedMs: state ? Math.max(0, Date.now() - Date.parse(state.observedAt)) : 0, providerLatencyMs },
       stateBytes: state ? Buffer.byteLength(JSON.stringify(state)) : 0 };

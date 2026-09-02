@@ -1,33 +1,20 @@
 # Combat intent schema v1
 
-**Canonical contract; Phase 1A parsing/validation implemented, execution deferred.** The LLM chooses intent; deterministic code validates facts and supported legality, then native Foundry/D&D5e/Midi execute. [WIRE_CONTRACT.md](WIRE_CONTRACT.md) owns transport/trusted scope; [NORMALIZED_COMBAT_STATE.md](NORMALIZED_COMBAT_STATE.md) owns the selectable catalogue.
-
-## Phase 1A implementation status
-
-src/decision-schema.json contains the normative schema below; an automated test prevents drift. Runtime parsing rejects duplicate keys, unknown fields, comments, prose/fences, oversized/deep output and invented references. The real provider uses this same schema when supported; validation remains mandatory without native structured output.
-
-Phase 1A never executes an intent. No plans are offered, so FINAL_INTENT movement and kind=move are rejected as PLAN_NOT_OFFERED. Valid PLAN_REQUEST goals are recorded with PLANNING_UNAVAILABLE feedback into the same bounded decision. Known range/LOS/resource blockers can reject an action; unknown native legality stays explicitly unverified. Acceptance means schema/references/freshness validated for a supervised dry-run, not native legal permission. No deterministic tactic or fallback action is selected. See PHASE1A_TESTING.md for limits and real-test status.
+**Canonical contract; supervised execution implemented for the bounded legacy subset.** The LLM chooses intent. Deterministic code validates schema, references, freshness, known range, turn-lease budgets and offered plan IDs. Foundry/D&D5e/Midi execute and resolve rules.
 
 ## One bounded decision
 
-Each LLM response is exactly one DecisionResponseV1 branch: **PLAN_REQUEST** or **FINAL_INTENT**, never both or an array. A decision may include read-only planning responses before its single accepted terminal intent; exactly one response branch is allowed per model call. The adapter issues a fresh stepId for each model call, and the LLM echoes it. decisionId/snapshotId stay the same through valid preview feedback.
+Each response is exactly PLAN_REQUEST or FINAL_INTENT. PLAN_REQUEST contains one movement goal and no commands or waypoints. FINAL_INTENT contains activate_item, move or end_turn. Correlation fields appear once on the outer response and must match the issued decision, snapshot and step.
 
-- PLAN_REQUEST chooses one movement goal. It cannot contain intent, planId, waypoints, commands or writes; unknown fields are rejected. Adapter validates the goal and requests Bridge plan-token-path; it returns PlanSummary or a bounded planning error to the same decision.
-- FINAL_INTENT contains the CombatIntentV1 payload: activate_item, move or end_turn. Movement may reference only a planId explicitly offered to this decision. Acceptance seals the decision; no more previews or mutations may be appended by another response.
+The initial provider schema permits PLAN_REQUEST, activate_item and end_turn, but excludes move because no valid planId exists yet. Once a PlanSummary is ready, only FINAL_INTENT is allowed. After PLAN_NOT_OFFERED or PLAN_NOT_NEEDED, a repair is restricted to non-movement FINAL_INTENT. Deterministic validation independently rejects invented plans, stale IDs, unavailable actions and exhausted budgets.
 
-Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+Each decision permits at most two PLAN_REQUESTs, two repair responses, five total model responses and 60 seconds shared with snapshot expiry. An accepted FINAL_INTENT seals that decision. One supervised turn episode may start at most five fresh decisions after command readbacks; it stops on end_turn, uncertainty, stale scope, cancellation or limit exhaustion.
 
-The LLM chooses the Actor target, action/weapon and movement goal. For approach it names target plus an offered actionId; the adapter derives stop distance/units from that Item's verified native range metadata. For position/retreat the LLM supplies a single destination grid cell. Grid coordinates describe a goal, not arbitrary waypoints or movement instructions. Deterministic code may choose a geometric route/tie-break; it must not choose a different target, weapon or tactic.
-
-Token IDs are resolved from fresh scene/combat data. Optional combatantId is validated as a scope hint; it does not enable duplicate-instance support in Phase 1. The acting linked Actor/token and authorization come from the trusted request.
-
-Per decision: at most two PLAN_REQUESTs, two repair responses, five LLM responses total, and one accepted FINAL_INTENT; stop at the 30-second decision deadline or earlier snapshot/plan expiry. Plan results do not reset counters or deadline. Stale source state closes the decision and invalidates its offers. A supervised Phase 1 invocation permits at most eight decision cycles and 120 seconds total, with no automatic restart or next-NPC handoff.
-
-Every model response, including malformed output, consumes one of the five responses. Every recognized PLAN_REQUEST consumes one of the two preview slots even if invalid/blocked/timed out; the adapter may issue at most one Bridge preview per slot, with no hidden retries. Invalid output/validation failure consumes a repair allowance when another model response is requested. After the second preview, only a FINAL_INTENT is permitted. Limit exhaustion, cancellation or timeout pauses for manual control without choosing a tactic or auto-ending the turn.
+The current scope offers generic legacy one-cost action and bonus-action Items. The process-local turn lease marks actionAvailable, bonusActionAvailable and movementRemaining. The LLM may select only ActionCards still marked available and targets in eligibleTargets. Reactions, prepared levelled spells, AoE/templates, arbitrary code and model-supplied rule values remain rejected.
 
 ## Normative JSON Schema (Draft 2020-12)
 
-The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1. Unknown keys are rejected at every boundary, without coercion or defaults. Provider function schemas and runtime parsing must use this same union. Nested intent decisionId/snapshotId must match the outer response and trusted request (semantic validation).
+The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1. Unknown keys are rejected at every boundary, without coercion or defaults. Provider function schemas and runtime parsing must use this same union. Correlation and freshness IDs exist once on the outer response and must match the trusted request. The nested intent is a strict kind-specific branch with only action, movement or neither.
 
 ~~~json
 {
@@ -136,7 +123,14 @@ The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1.
           "$ref": "#/$defs/id"
         },
         "target": {
-          "$ref": "#/$defs/target"
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/target"
+            }
+          ]
         }
       }
     },
@@ -161,70 +155,37 @@ The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1.
       }
     },
     "finalIntent": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "schemaVersion",
-        "decisionId",
-        "snapshotId",
-        "kind",
-        "action",
-        "movement"
-      ],
-      "properties": {
-        "schemaVersion": {
-          "const": "1.0"
-        },
-        "decisionId": {
-          "$ref": "#/$defs/id"
-        },
-        "snapshotId": {
-          "$ref": "#/$defs/id"
-        },
-        "kind": {
-          "enum": [
-            "activate_item",
-            "move",
-            "end_turn"
-          ]
-        },
-        "action": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/itemAction"
-            }
-          ]
-        },
-        "movement": {
-          "oneOf": [
-            {
-              "type": "null"
-            },
-            {
-              "$ref": "#/$defs/movement"
-            }
-          ]
-        },
-        "reason": {
-          "type": "string",
-          "maxLength": 240
-        }
-      },
       "oneOf": [
         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "action"
+          ],
           "properties": {
             "kind": {
               "const": "activate_item"
             },
             "action": {
               "$ref": "#/$defs/itemAction"
+            },
+            "movement": {
+              "type": "null"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 240
             }
           }
         },
         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "movement"
+          ],
           "properties": {
             "kind": {
               "const": "move"
@@ -234,10 +195,19 @@ The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1.
             },
             "movement": {
               "$ref": "#/$defs/movement"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 240
             }
           }
         },
         {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
           "properties": {
             "kind": {
               "const": "end_turn"
@@ -247,6 +217,10 @@ The root validates DecisionResponseV1; $defs.finalIntent defines CombatIntentV1.
             },
             "movement": {
               "type": "null"
+            },
+            "reason": {
+              "type": "string",
+              "maxLength": 240
             }
           }
         }
@@ -347,9 +321,6 @@ After the adapter supplies the offered PlanSummary back to this same decision, t
   "stepId": "step-2",
   "type": "FINAL_INTENT",
   "intent": {
-    "schemaVersion": "1.0",
-    "decisionId": "decision-17",
-    "snapshotId": "snapshot-42",
     "kind": "activate_item",
     "action": {
       "actionId": "action-scimitar",
@@ -359,11 +330,7 @@ After the adapter supplies the offered PlanSummary back to this same decision, t
         "combatantId": "combatant-hero"
       }
     },
-    "movement": {
-      "planId": "plan-approach-hero",
-      "goalKind": "approach"
-    },
-    "reason": "Close with the intruder guarding the doorway."
+    "reason": "Attack the selected intruder."
   }
 }
 ~~~
@@ -381,10 +348,10 @@ Only FINAL_INTENT proceeds to item/path-write validation and execution. PLAN_REQ
 | Correlation/replay | Match the issued stepId within decisionId/snapshotId. Same (decisionId, stepId)/body returns cached feedback/result; changed body for that pair rejects. Distinct issued steps allow preview → final or bounded repair. An accepted FINAL_INTENT seals the decision | DUPLICATE_CONFLICT / cached result |
 | Freshness | Fresh READ bracket agrees on combat.scene, combatId, round, turn, current combatant/Actor/token, connection generation, scene revision and relevant Actor/item/resource/target facts | STALE_STATE |
 | Acting instance | Require linked Actor and unique scene token for Phase 1; resolve current combatant and reject synthetic or duplicate instances. Effective Actor/resources/item must agree | INSTANCE_MISMATCH / UNSUPPORTED |
-| Planning branch | Validate one PlanGoalV1, catalogue action/target, scene bounds, remaining preview slots and deadline. Translate to Bridge plan-token-path only; return PlanSummary to same decision. Do not execute a write | INVALID_GOAL / PLAN_LIMIT |
+| Planning branch | Validate one PlanGoalV1, catalogue action/target, canPlanApproach, eligibleTargets, scene bounds, remaining preview slots and deadline. Translate to geometric planning only; return PlanSummary to the same decision. Do not execute a write | INVALID_GOAL / PLAN_LIMIT |
 | Catalogue | actionId and itemId are paired in the supplied catalogue, Item still owned by effective acting Actor; do not reject solely for hasActivities:false | ITEM_UNAVAILABLE |
 | Native availability | Known counters/preparation/equipment/recharge/activation metadata and native constraints allow operation in supported profile. Missing constraints do not become available; native pipeline still has final say | UNAVAILABLE / UNKNOWN_LEGALITY |
-| Target | Resolve actorId (+ combatantId if supplied) to fresh scene token. Must be one known perceived target in allowed target set, matching Item target type/count, Foundry disposition and StoryCore relationship context without making a tactical choice | AMBIGUOUS_TARGET / TARGET_UNAVAILABLE |
+| Target | Resolve actorId (+ combatantId if supplied) to a fresh scene token. It must be in the operator-selected closed attack-target set, relationToSelf=enemy and the chosen ActionCapability eligibleTargets. Foundry disposition remains diagnostic and never defines this NPC-relative relationship | AMBIGUOUS_TARGET / TARGET_UNAVAILABLE |
 | Path | Non-null ready planId was offered to this decision, present in movement.plans with matching offeredFor.decisionId/snapshotId, scope and goal; unexpired, native cost within known budget and geometry still valid | STALE_PLAN / PATH_UNAVAILABLE |
 | Item after movement | Plan endpoint provisionally permits intended action; after actual movement, OBSERVE then recheck target position/perception, native range, resources, item and current turn | ACTION_INVALIDATED |
 | Execution | Translator emits only allowlisted guarded move-token, dnd5e/activate-item or next-turn fields. LLM arguments are never spread into Bridge params | INTERNAL_CONTRACT_ERROR |

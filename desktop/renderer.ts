@@ -6,6 +6,19 @@ function el(id: string): HTMLElement { const node = document.getElementById(id);
 const input = (id: string) => el(id) as HTMLInputElement;
 const button = (id: string) => el(id) as HTMLButtonElement;
 const view = (id: string, data: unknown) => { el(id).textContent = JSON.stringify(data, null, 2); };
+function renderRun(data: unknown) {
+  const run = data as { status?: string; writesDispatched?: number;
+    log?: { at: string; phase: string; status: string; message: string; details?: unknown }[] };
+  if (!Array.isArray(run.log)) { view("result", data); return; }
+  const lines = run.log.map(entry => {
+    const time = entry.at?.slice(11, 19) ?? "--:--:--";
+    const details = entry.details ? " " + JSON.stringify(entry.details) : "";
+    return time + " [" + entry.phase + "] " + entry.status + " — " + entry.message + details;
+  });
+  lines.push("", "STATUS: " + (run.status ?? "RUNNING"),
+    "WRITES DISPATCHED: " + (run.writesDispatched ?? 0));
+  el("result").textContent = lines.join("\n"); view("rawResult", data);
+}
 async function unwrap<T>(result: Promise<IpcResult<T>>): Promise<T> {
   const reply = await result; if (!reply.ok) throw new Error(reply.error); return reply.data;
 }
@@ -22,8 +35,8 @@ function scopeError(code: string) {
 }
 function resetConfirmation() { input("attest").checked = false; lock(localBusy); }
 function updateRelationships() {
-  const names = detected?.candidates.filter(c => selected.has(c.candidateId) && c.disposition === "hostile").map(c => c.name + ": Hostile combatant") ?? [];
-  el("relationships").textContent = names.join("\n") || "No selected hostile combatants.";
+  const names = detected?.candidates.filter(c => selected.has(c.candidateId)).map(c => c.name + ": Enemy selected for this run") ?? [];
+  el("relationships").textContent = names.join("\n") || "No attack targets selected.";
 }
 function showDetected(data: DetectedTurn) {
   detected = data; selected.clear(); input("attest").checked = false;
@@ -41,7 +54,7 @@ function showDetected(data: DetectedTurn) {
     check.dataset.candidate = candidate.candidateId; check.dataset.eligible = String(candidate.eligible);
     if (candidate.eligible) selected.add(candidate.candidateId);
     const text = document.createElement("span");
-    text.textContent = candidate.name + " / " + candidate.disposition +
+    text.textContent = candidate.name + " / Foundry disposition: " + candidate.disposition +
       (candidate.distanceFt === null ? "" : " / " + candidate.distanceFt + " ft") +
       (candidate.eligible ? " / LOS reported (confirm perception)" : " / Excluded: " + candidate.excludedReason);
     check.onchange = () => {
@@ -75,9 +88,9 @@ async function refresh() {
   try {
     const data = await unwrap(api.status());
     el("status").textContent = "Adapter ready | Bridge " + (data.bridge.connected ? "CONNECTED" : "disconnected") +
-      " | Reads sent: " + data.bridge.readsSent + " | " + (data.busy ? "Busy" : "Idle") +
+      " | Reads: " + data.bridge.readsSent + " | Writes: " + data.bridge.writesSent + " | " + (data.busy ? "Busy" : "Idle") +
       " | OpenRouter key: " + (data.settings.hasOpenRouterKey ? "stored" : "missing") +
-      " | Bridge key: " + (data.settings.hasBridgeKey ? "stored" : "missing") + " | Execution DISABLED";
+      " | Bridge key: " + (data.settings.hasBridgeKey ? "stored" : "missing") + " | Supervised execution enabled";
     if (!initialized) { input("model").value = data.settings.model; input("temperature").value = String(data.settings.temperature); initialized = true;
       (document.querySelector(".settings-panel") as HTMLDetailsElement).open = !data.settings.hasOpenRouterKey || !data.settings.hasBridgeKey; }
     savedKeys.apiKey = data.settings.hasOpenRouterKey; savedKeys.bridgeKey = data.settings.hasBridgeKey;
@@ -87,8 +100,10 @@ async function refresh() {
       el("turnStatus").textContent = "Bridge session changed. Click Detect / Refresh again.";
     }
     lock(data.busy || localBusy);
+    if (data.busy && data.log.length)
+      renderRun({ status: "RUNNING", writesDispatched: data.bridge.writesSent, log: data.log });
     if (data.latest && !data.busy && !localBusy && data.latest.decisionId !== lastDecisionId) {
-      view("result", data.latest); lastDecisionId = data.latest.decisionId;
+      renderRun(data.latest); lastDecisionId = data.latest.decisionId;
     }
   } catch { el("status").textContent = "Desktop runtime unavailable. Close and restart the app."; }
 }
@@ -97,6 +112,7 @@ async function operation(output: string, run: () => Promise<unknown>) {
   try {
     const result = await run();
     if (output === "turnStatus") { const data = result as { status: string; message: string }; el(output).textContent = data.status + "\n" + data.message; }
+    else if (output === "result" && typeof result === "object" && result !== null && "log" in result) renderRun(result);
     else view(output, result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "REQUEST_FAILED";
@@ -146,7 +162,7 @@ async function detectTurn() {
     el("turnStatus").textContent = "Reading current combat and active scene...";
     try { showDetected(await unwrap(api.detectTurn())); }
     catch (error) { throw new Error(scopeError(error instanceof Error ? error.message : "REQUEST_FAILED")); }
-    return { status: "SUPPORTED FOR PHASE 1A", message: "Inspect targets and confirm perception / linked-Actor scope before running. No writes." };
+    return { status: "READY FOR SUPERVISED TURN", message: "Inspect targets, authorize the bounded turn, then Run. Writes are logged and freshly observed." };
   });
 }
 button("detect").onclick = () => void detectTurn();
@@ -159,7 +175,7 @@ button("run").onclick = () => void operation("result", async () => {
     mind: { personality: input("personality").value, motivation: input("motivation").value,
       relevantMemory: JSON.parse(input("memory").value) } };
   input("attest").checked = false;
-  view("result", { status: "Rechecking detected scope and asking real OpenRouter in main. No writes..." });
+  view("result", { status: "Starting supervised turn: recheck → LLM → validate → command → observe." });
   try {
     const result = await unwrap(api.runDecision(request)); lastDecisionId = result.decisionId;
     if (result.status === "DETECTED_SCOPE_STALE") {

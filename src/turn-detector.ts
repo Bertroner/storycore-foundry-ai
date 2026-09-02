@@ -102,9 +102,9 @@ export class TurnDetector {
       actorId: detection.raw.actor.id, tokenId: detection.raw.token.id,
       linkedActorIds: [detection.raw.actor.id, ...targets.map(c => c.actorId)], perceivedTokenIds: targets.map(c => c.tokenId!),
       attestSingleActiveCombat: true, attestViewedCombatScene: true, attestNormalWalkingNoTerrain: true };
-    // Factual disposition only, for confirmed selected targets. No tactical instructions or unseen relations.
+    // Selection is explicit per-run attack authorization. Foundry disposition remains diagnostic only.
     const mind: NpcMind = { ...input.mind, actorId: fixture.actorId,
-      relationships: targets.filter(c => c.disposition === "hostile").map(c => ({ actorId: c.actorId, summary: "Hostile combatant" })) };
+      relationships: targets.map(c => ({ actorId: c.actorId, summary: "Enemy selected for this supervised run" })) };
     return { fixture, mind, capture: async () => {
       try {
         ensure(this.latest === detection && this.bridge.epoch === detection.raw.epoch, "DETECTED_SCOPE_STALE");

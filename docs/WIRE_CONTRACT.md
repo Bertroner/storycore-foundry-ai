@@ -1,14 +1,16 @@
 # Wire contract v1
 
-**Status: Phase 1A read/decision subset implemented; execution/extensions remain design only.** Existing Bridge wire is audited at v8.11.2; StoryCore envelopes and extensions below are proposals, not commands already available. [SOURCE_AUDIT.md](SOURCE_AUDIT.md) gives exact paths/pin; the two schema documents define the decision DTOs.
+**Status: supervised read, decision, validation, command and observation slice implemented.** Existing Foundry API Bridge v8.11.2 remains the sole command bus. No generic Bridge passthrough or arbitrary Foundry JavaScript is exposed.
 
-Phase 1 is limited to one NPC, one active combat, a linked Actor with a unique token instance, 1x1 square-grid walking without doors, and legacy single-target melee/ranged weapons. Unlinked/synthetic Actors, duplicate Actor instances, spells, AoE, reactions, bonus-action complexity, difficult terrain, flying/elevation, doors and multi-NPC tactics are deferred. Broader types/extensions below describe future compatibility; Phase 1 rejects those cases rather than implementing them. [PROJECT_STATE.md](PROJECT_STATE.md) defines the reviewed scope.
+The current scope is one authorized NPC turn with a linked unique 1x1 token, square-grid walking without doors/terrain, and legacy single-target/self action or bonus-action Items. D&D5e/Midi resolve the Item. Prepared levelled spells, activities, AoE/templates, reactions, difficult terrain, elevation/flying, duplicate/unlinked Actor instances and multi-NPC tactics remain excluded.
 
-## Phase 1A implementation status
+Electron main owns DesktopService. Detect derives scene, combat, Actor, token and Item identities from Bridge reads; renderer submits only an opaque detection handle, selected target rows, narrative text and explicit attestation. Main revalidates active scope before every command. Target selection is a closed operator-authorized enemy set and remains separate from Foundry disposition.
 
-The read/decision subset is implemented in src/. The external StoryCore campaign route has no exported decision client; LlmDecisionGateway is the minimal compatible boundary documented in STORYCORE_BOUNDARY.md. The adapter/executor envelopes below remain the full future contract, not generic endpoints exposed by the dev server.
+One Run contains at most five sequential bounded decisions. Each decision uses a fresh CombatState snapshot with a 60-second lifetime, at most two plans, two repairs and five provider responses. Before any PlanSummary exists, move is absent from the provider output schema. Movement can use only a runtime-offered planId. After every move or Item activation, fresh observation produces the next DecisionView.
 
-Phase 1A is strictly read-only. Electron main owns DesktopService; the fixed detectTurn IPC method discovers and retains the active scope in main. The narrow typed runDecision method accepts requestId, detectionId, selectedCandidateIds (offered opaque handles), attested:true and development mind (personality/motivation/relevantMemory). Main derives scope IDs and factual selected-hostile relationships; editable renderer scope/Actor IDs are rejected. It checks the active scene and fresh combat bracket against that detection before the model; changes reject as DETECTED_SCOPE_STALE. One invocation is bounded to one decision (two plan attempts, two repair continuations, five model calls, 60 seconds shared with snapshot expiry via PHASE1A_DECISION_LIFETIME_MS), stricter than the future eight-cycle maximum. No LLM tool interface or generic Bridge passthrough exists. PLAN_REQUEST returns summary:null and error.code=PLANNING_UNAVAILABLE in planFeedback for the same decision/snapshot. No plan-token-path command is dispatched. FINAL_INTENT is only stored as DRY-RUN VALIDATED INTENT; no submit-intent write path exists. Desktop status/save/clear/test/detect/run/cancel IPC handlers validate the exact local main-frame sender. No generic IPC or Bridge passthrough is exposed. Former HTTP UI/settings/decision routes are removed; only non-secret /health and the loopback Bridge WebSocket listener remain. Full Windows setup and evidence: PHASE1A_TESTING.md.
+A process-local turn lease supplies movementRemaining, actionAvailable and bonusActionAvailable after the operator confirms no prior manual spending on that NPC turn. At most two movement writes, one action Item, one bonus-action Item and one next-turn write are admitted. The lease is a deterministic safety ledger, not a D&D rules engine or a claim about Foundry history.
+
+The command allowlist remains move-token, dnd5e/activate-item, clear-targets and next-turn. Item execution clears stale user targets, invokes exactly one Actor-owned Item, clears targets after settlement and observes fresh Actor/token/effect/combat state. Any ambiguous workflow, failed cleanup, stale scope or partial mutation stops without retry. Settings/status/detect/run/cancel IPC calls are fixed and sender-validated; the loopback HTTP service exposes no settings, decisions or write endpoint.
 
 ## 1. Trusted StoryCore ↔ adapter boundary
 
@@ -111,13 +113,11 @@ Example internal adapter submission admitted from FINAL_INTENT (payload fixture 
     "actorId": "actor-goblin", "combatantId": "combatant-goblin"
   },
   "intent": {
-    "schemaVersion": "1.0", "decisionId": "decision-17", "snapshotId": "snapshot-42",
     "kind": "activate_item",
     "action": {
       "actionId": "action-scimitar", "itemId": "item-scimitar",
       "target": { "actorId": "actor-hero", "combatantId": "combatant-hero" }
-    },
-    "movement": { "planId": "plan-approach-hero", "goalKind": "approach" }
+    }
   }
 }
 ~~~

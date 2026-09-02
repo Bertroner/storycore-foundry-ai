@@ -21,7 +21,9 @@ test("Bridge v8.11.2 numeric summary and string detail parse and normalize witho
   }
   const state = new CombatNormalizer().normalize(raw);
   assert.equal(state.self.actorLink, null); assert.equal(state.runtime.scopeVerified, false);
-  assert.equal(state.runtime.automaticExecution, false); assert.equal(state.nearby[0]!.disposition, "friendly");
+  assert.equal(state.runtime.automaticExecution, true);
+  assert.equal(state.nearby[0]!.relationToSelf, "enemy"); assert.equal(state.nearby[0]!.targetAuthorized, true);
+  assert.equal("disposition" in state.nearby[0]!, false);
   assert.ok(mock.calls.every(call => READ_COMMANDS.includes(call.type)));
   assert.deepEqual([...new Set(mock.calls.map(call => call.type))].sort(), [...READ_COMMANDS].sort());
 });
